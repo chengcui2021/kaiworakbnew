@@ -39,6 +39,7 @@ from app.services.context_assembly import (
     evaluate_lock,
     lock_assembly,
 )
+from app.services.learning_service import reusable as reusable_learning
 from app.services.knowledge_resolver import (
     KnowledgeResolutionError,
     KnowledgeResolutionUnavailableError,
@@ -160,7 +161,13 @@ async def _assemble_from_analysis(
             "Only approved/resolved knowledge can enter a governed context. "
             f"Not approved/resolved: {exc.entry_ids}"
         )) from exc
-    knowledge = build_knowledge_context(entries, resolution=resolution)
+    learning_entries = await reusable_learning(
+        db,
+        payload.tenant_id,
+        payload.workspace_id,
+        str(payload.repository_analysis.url or payload.repository_analysis.name or ""),
+    )
+    knowledge = build_knowledge_context(entries, resolution=resolution, learning_entries=learning_entries)
     try:
         governance = build_governance_context(payload.governance)
     except GovernanceConflictError as exc:

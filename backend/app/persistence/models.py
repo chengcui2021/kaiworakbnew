@@ -367,3 +367,29 @@ class ContextAssemblyLockDB(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+
+class LearningEntryDB(Base):
+    """Tenant/repository-scoped learning evidence. Candidate rows are never authoritative."""
+    __tablename__ = "learning_entries"
+    __table_args__ = (
+        Index("ix_learning_scope", "tenant_id", "workspace_id", "repository_id"),
+        Index("ix_learning_status", "status"),
+        Index("ix_learning_fingerprint", "fingerprint"),
+    )
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    tenant_id: Mapped[str] = mapped_column(String(255), nullable=False, server_default=text("'default'"))
+    workspace_id: Mapped[str] = mapped_column(String(255), nullable=False, server_default=text("'default'"))
+    repository_id: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
+    knowledge_type: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'procedural'"))
+    scope: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'repository'"))
+    observation: Mapped[str] = mapped_column(Text(), nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'candidate'"))
+    confidence: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text("0"))
+    source_run_id: Mapped[str] = mapped_column(String(255), nullable=False, server_default=text("''"))
+    source_commit: Mapped[str] = mapped_column(String(255), nullable=False, server_default=text("''"))
+    evidence: Mapped[dict] = mapped_column(JSON(), nullable=False, server_default=text("'{}'::json"))
+    provenance: Mapped[dict] = mapped_column(JSON(), nullable=False, server_default=text("'{}'::json"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

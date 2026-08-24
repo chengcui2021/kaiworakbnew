@@ -294,6 +294,7 @@ def build_repository_context(payload: RepositoryInput) -> RepositoryAnalysisCont
 def build_knowledge_context(
     entries: Sequence[Entry],
     resolution: KnowledgeResolution | None = None,
+    learning_entries: Sequence[object] | None = None,
 ) -> KnowledgeContext:
     """Wrap approved KB entries with provenance and the shared knowledge hash.
 
@@ -325,7 +326,24 @@ def build_knowledge_context(
         )
         for e in ordered
     ]
-    knowledge_hash = compute_entry_context_hash(ordered)
+    validated_learning = sorted(list(learning_entries or []), key=lambda e: str(getattr(e, "id", "")))
+    learning_snapshots = [
+        KnowledgeSnapshot(
+            entry_id="learning:" + str(getattr(e, "id")),
+            title="Validated procedural learning",
+            content=str(getattr(e, "observation", "")),
+            source="kaiwora-learning:" + str(getattr(e, "source_run_id", "")),
+            version=(getattr(e, "validated_at", None) or getattr(e, "created_at", None)).isoformat() if (getattr(e, "validated_at", None) or getattr(e, "created_at", None)) else None,
+            updated_at=(getattr(e, "validated_at", None) or getattr(e, "created_at", None)).isoformat() if (getattr(e, "validated_at", None) or getattr(e, "created_at", None)) else None,
+            status="validated",
+        ) for e in validated_learning
+    ]
+    combined_hash_payload = [
+        {"id": str(e.id), "content": e.content} for e in ordered
+    ] + [
+        {"id": item.entry_id, "content": item.content} for item in learning_snapshots
+    ]
+    knowledge_hash = sha256_digest(combined_hash_payload) if learning_snapshots else compute_entry_context_hash(ordered)
     digest_payload = {
         "source_capability": KNOWLEDGE_SOURCE_CAPABILITY,
         "approved_status": APPROVED_ENTRY_STATUS.value,
@@ -336,6 +354,7 @@ def build_knowledge_context(
         # Bind the snapshot identity to the context digest without hashing the
         # full body twice; knowledge_hash already covers {id, content}.
         "snapshot_entry_ids": [item.entry_id for item in snapshots],
+        "validated_learning_ids": [item.entry_id for item in learning_snapshots],
     }
     # Preserve the exact legacy digest for explicit selections. Automatic
     # resolution adds its own immutable evidence only when it is actually used.
@@ -347,9 +366,10 @@ def build_knowledge_context(
         source_capability=KNOWLEDGE_SOURCE_CAPABILITY,
         approved_status=APPROVED_ENTRY_STATUS.value,
         entry_ids=[p.entry_id for p in provenance],
-        entry_count=len(provenance),
+        entry_count=len(provenance) + len(learning_snapshots),
         provenance=provenance,
         snapshots=snapshots,
+        learning_snapshots=learning_snapshots,
         resolution=resolution,
         knowledge_hash=knowledge_hash,
         digest=digest,

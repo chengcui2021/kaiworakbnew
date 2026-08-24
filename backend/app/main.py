@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes import context_assembly, documents, packages, search, workspaces, workstreams
-from app.routes_persistent import entries as persistent_entries, semantic_search as persistent_search, tags as persistent_tags, jira_links as persistent_jira_links, persistence_health, templates as persistent_templates, transform as persistent_transform, llm_usage as persistent_llm_usage
+from app.routes_persistent import entries as persistent_entries, semantic_search as persistent_search, tags as persistent_tags, jira_links as persistent_jira_links, persistence_health, templates as persistent_templates, transform as persistent_transform, llm_usage as persistent_llm_usage, learning as governed_learning
 
 logging.basicConfig(level=logging.INFO)
 
@@ -43,6 +43,7 @@ app.include_router(persistent_jira_links.router)
 app.include_router(persistent_templates.router)
 app.include_router(persistent_transform.router)
 app.include_router(persistent_llm_usage.router)
+app.include_router(governed_learning.router)
 
 
 @app.get("/health")

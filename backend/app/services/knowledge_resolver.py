@@ -162,12 +162,14 @@ async def resolve_knowledge(
     unavailable. An empty *successful* result is allowed: it means no approved
     entry in the authorised scopes met the relevance criteria.
     """
-    if workstream_id is None and not include_shared:
-        raise KnowledgeResolutionError(
-            "Automatic knowledge resolution requires a workstream or shared knowledge scope."
-        )
-
     query = build_resolution_query(requirement, repository)
+    if workstream_id is None and not include_shared:
+        payload = {
+            "resolver_version": RESOLVER_VERSION, "mode": "automatic", "query": query,
+            "workstream_id": None, "include_shared": False, "selected": [],
+        }
+        return KnowledgeResolution(**payload, resolution_hash=sha256_digest(payload))
+
     if not query.strip():
         raise KnowledgeResolutionError("Cannot resolve knowledge from empty analysis context.")
 

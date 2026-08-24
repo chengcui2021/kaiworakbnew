@@ -172,3 +172,10 @@ Guardrails live under `.claude/`. Slash commands available in a Claude Code sess
 | `/fix-problems` | Sweep & fix the VS Code Problems panel (ESLint + type errors) |
 
 Convention skills auto-surface on each edit via the `inject-skill-pointers` hook — including **`vue-security`** (XSS/`v-html`, `VITE_` secrets, client-trust boundary, IDOR) and **`vue-performance`** (reactivity cost, `markRaw`, list virtualization, lazy imports). `v-html` is pinned to an ESLint warning (`vue/no-v-html`) so every XSS sink is flagged. Full skill list + the Change Protocol: [`frontend/CLAUDE.md`](frontend/CLAUDE.md).
+
+
+## Kaiwora Governance & Continuous Learning V1
+
+This service is the internal governance/knowledge engine for Kaiwora. Customers do not manage Context Lock IDs. Agent Core sends structured requirement/repository analysis to `/api/governed-context/lock-from-analysis`; the lock remains an immutable internal execution contract.
+
+Completed governed runs publish tenant/workspace/repository-scoped evidence to `/api/internal/learning/candidates`. One run remains `candidate`; repeated successful high-confidence evidence can auto-promote the same fingerprint to `validated`. Candidate learning is never execution authority. Validated learning is exposed through `/api/internal/learning/reusable` for governed retrieval integration.

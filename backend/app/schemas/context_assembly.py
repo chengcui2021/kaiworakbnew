@@ -156,6 +156,8 @@ class GovernedContextFromAnalysisRequest(BaseModel):
     analysis_source: str = Field(default="lingyu", min_length=1, max_length=100)
     analysis_id: str | None = Field(default=None, max_length=200)
     analysis_hash: str | None = Field(default=None, max_length=200)
+    tenant_id: str = Field(default="default", min_length=1, max_length=255)
+    workspace_id: str = Field(default="default", min_length=1, max_length=255)
     requirement_analysis: RequirementAnalysisInput
     repository_analysis: RepositoryAnalysisInput
     knowledge: KnowledgeSelectionInput = Field(default_factory=KnowledgeSelectionInput)
@@ -192,6 +194,8 @@ class RequirementAnalysisContext(BaseModel):
     analysis_source: str = "kb_structured_input"
     analysis_id: str | None = None
     analysis_hash: str | None = None
+    tenant_id: str = "default"
+    workspace_id: str = "default"
     source: str | None = None
     digest: str
 
@@ -298,7 +302,11 @@ class KnowledgeContext(BaseModel):
     provenance: list[KnowledgeProvenance] = Field(default_factory=list)
     snapshots: list[KnowledgeSnapshot] = Field(
         default_factory=list,
-        description="Immutable approved knowledge bodies frozen into the governed context.",
+        description="Immutable authoritative/approved knowledge bodies frozen into the governed context.",
+    )
+    learning_snapshots: list[KnowledgeSnapshot] = Field(
+        default_factory=list,
+        description="Immutable validated learned knowledge. Candidate learning is never included.",
     )
     resolution: KnowledgeResolution | None = Field(
         default=None,
