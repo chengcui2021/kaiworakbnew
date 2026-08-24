@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build preview stack
+        run: docker compose build
+
+      - name: Create CI env file
+        run: |
+          cat > .env <<EOF
+          APP_NAME=metamorphic-kb
+          DEBUG=false
+          DATABASE_URL=postgresql+asyncpg://metamorphic:metamorphic@db:5432/metamorphic_kb
+          AWS_REGION=${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          BEDROCK_EMBEDDING_MODEL_ID=${{ secrets.BEDROCK_EMBEDDING_MODEL_ID }}
+          BEDROCK_EMBEDDING_DIMENSIONS=${{ secrets.BEDROCK_EMBEDDING_DIMENSIONS }}
+          BEDROCK_LLM_MODEL_ID=${{ secrets.BEDROCK_LLM_MODEL_ID }}
+          BEDROCK_LLM_MAX_TOKENS=${{ secrets.BEDROCK_LLM_MAX_TOKENS }}
+          BEDROCK_LLM_TEMPERATURE=${{ secrets.BEDROCK_LLM_TEMPERATURE }}
+          JIRA_BASE_URL=${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL=${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN=${{ secrets.JIRA_API_TOKEN }}
+          JIRA_STORY_POINTS_FIELD=${{ secrets.JIRA_STORY_POINTS_FIELD }}
+          EOF
+
+      - name: Start preview stack
+        run: docker compose up -d
+
+      - name: Wait for API health
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose ps
+          docker compose logs backend --tail 120
+          exit 1
+
+      - name: Smoke test frontend
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000 >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose ps
+          docker compose logs frontend --tail 120
+          exit 1
+
+      - name: Stop stack
+        if: always()
+        run: docker compose down -v

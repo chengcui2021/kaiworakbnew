@@ -1,0 +1,42 @@
+/* =====================================================
+   BLUE THEME (Light)
+
+   Blue-themed light variant with #005BA7 primary/secondary
+   and black text.
+===================================================== */
+
+.theme-blue {
+  --radius: 0.625rem;
+  --background: oklch(0.99 0.005 255);
+  --foreground: oklch(0 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0 0 0);
+  --primary: oklch(0.44 0.16 255);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.93 0.03 255);
+  --secondary-foreground: oklch(0 0 0);
+  --muted: oklch(0.96 0.01 255);
+  --muted-foreground: oklch(0.45 0.03 255);
+  --accent: oklch(0.92 0.04 255);
+  --accent-foreground: oklch(0 0 0);
+  --destructive: var(--error);
+  --destructive-foreground: var(--error-foreground);
+  --border: oklch(0.9 0.02 255);
+  --input: oklch(0.9 0.02 255);
+  --ring: oklch(0.44 0.16 255);
+  --chart-1: oklch(0.5 0.18 255);
+  --chart-2: oklch(0.55 0.14 230);
+  --chart-3: oklch(0.45 0.12 270);
+  --chart-4: oklch(0.6 0.16 245);
+  --chart-5: oklch(0.48 0.15 260);
+  --sidebar: oklch(0.98 0.01 255);
+  --sidebar-foreground: oklch(0 0 0);
+  --sidebar-primary: oklch(0.44 0.16 255);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.93 0.03 255);
+  --sidebar-accent-foreground: oklch(0 0 0);
+  --sidebar-border: oklch(0.9 0.02 255);
+  --sidebar-ring: oklch(0.44 0.16 255);
+}

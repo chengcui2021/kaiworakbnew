@@ -1,0 +1,83 @@
+/* =====================================================
+   SEMANTIC COLORS - Functional Colors for UX Clarity
+
+   These colors provide meaning and never change across
+   themes or brands. They ensure consistent UX feedback.
+
+   Core Principle:
+   - Success = Green-ish (completion, validation, positive)
+   - Error = Red-ish (failure, rejection, danger)
+   - Warning = Yellow/Amber-ish (caution, attention needed)
+   - Info = Blue-ish (information, in-progress, neutral)
+
+   These colors maintain their meaning and accessible
+   contrast ratios in both light and dark modes.
+===================================================== */
+
+:root {
+  /* Success - Beautiful emerald/teal green for positive actions */
+  --success: oklch(0.68 0.15 155);
+  --success-foreground: oklch(0.99 0.01 155);
+  --success-muted: oklch(0.96 0.06 155);
+  --success-muted-foreground: oklch(0.42 0.12 155);
+  --success-hover: oklch(0.64 0.16 155);
+  --success-muted-hover: oklch(0.94 0.08 155);
+
+  /* Error - Elegant rose/coral red for failures and critical issues */
+  --error: oklch(0.63 0.19 20);
+  --error-foreground: oklch(0.99 0.01 20);
+  --error-muted: oklch(0.97 0.06 20);
+  --error-muted-foreground: oklch(0.48 0.14 20);
+  --error-hover: oklch(0.59 0.2 20);
+  --error-muted-hover: oklch(0.95 0.08 20);
+
+  /* Warning - Warm amber/honey for caution and attention */
+  --warning: oklch(0.78 0.15 75);
+  --warning-foreground: oklch(0.3 0.08 50);
+  --warning-muted: oklch(0.96 0.06 75);
+  --warning-muted-foreground: oklch(0.45 0.11 50);
+  --warning-hover: oklch(0.74 0.16 75);
+  --warning-muted-hover: oklch(0.94 0.08 75);
+
+  /* Info - Vibrant sky blue for information and processing */
+  --info: oklch(0.63 0.15 240);
+  --info-foreground: oklch(0.99 0.01 240);
+  --info-muted: oklch(0.96 0.06 240);
+  --info-muted-foreground: oklch(0.42 0.12 240);
+  --info-hover: oklch(0.59 0.16 240);
+  --info-muted-hover: oklch(0.94 0.08 240);
+}
+
+.dark {
+  /* Success - Luminous emerald with depth and richness */
+  --success: oklch(0.65 0.16 155);
+  --success-foreground: oklch(0.98 0.02 155);
+  --success-muted: oklch(0.25 0.08 155);
+  --success-muted-foreground: oklch(0.85 0.13 155);
+  --success-hover: oklch(0.7 0.18 155);
+  --success-muted-hover: oklch(0.28 0.1 155);
+
+  /* Error - Rich crimson rose with sophistication */
+  --error: oklch(0.65 0.18 20);
+  --error-foreground: oklch(0.98 0.02 20);
+  --error-muted: oklch(0.25 0.09 20);
+  --error-muted-foreground: oklch(0.87 0.15 20);
+  --error-hover: oklch(0.7 0.2 20);
+  --error-muted-hover: oklch(0.28 0.11 20);
+
+  /* Warning - Warm golden amber with inviting glow */
+  --warning: oklch(0.75 0.15 75);
+  --warning-foreground: oklch(0.2 0.05 75);
+  --warning-muted: oklch(0.25 0.07 75);
+  --warning-muted-foreground: oklch(0.88 0.13 75);
+  --warning-hover: oklch(0.78 0.17 75);
+  --warning-muted-hover: oklch(0.28 0.09 75);
+
+  /* Info - Vibrant sapphire blue with clarity */
+  --info: oklch(0.65 0.16 240);
+  --info-foreground: oklch(0.98 0.02 240);
+  --info-muted: oklch(0.25 0.08 240);
+  --info-muted-foreground: oklch(0.85 0.13 240);
+  --info-hover: oklch(0.7 0.18 240);
+  --info-muted-hover: oklch(0.28 0.1 240);
+}

@@ -1,0 +1,148 @@
+[
+  {
+    "key": "EPIC-001",
+    "title": "Prototype Foundation",
+    "summary": "Create the runnable Vue/FastAPI prototype foundation.",
+    "tickets": [
+      {
+        "key": "PROTO-001",
+        "summary": "Set up Continue KB Phase 1 Vue + TypeScript frontend scaffold",
+        "type": "Task",
+        "priority": "High",
+        "status": "Ready",
+        "description": "Set up Continue KB Phase 1 Vue + TypeScript frontend scaffold. Generated from the approved prototype specification and ready for engineering refinement.",
+        "acceptance": [
+          "The user can complete the main workflow described in the approved specification.",
+          "The UI includes empty, loading, success, and error states where relevant.",
+          "The implementation follows the Vue + TypeScript frontend and FastAPI backend contract.",
+          "The feature can be validated through the prototype preview or local Docker Compose runtime."
+        ],
+        "implementation": [
+          "Keep changes scoped to this ticket and preserve existing project execution behaviour.",
+          "Use the approved specification as the source of truth.",
+          "Add clear API contracts and user-facing validation for the main path."
+        ],
+        "files": [
+          "frontend/src/App.vue",
+          "frontend/src/main.ts",
+          "frontend/src/style.css",
+          "backend/app/main.py"
+        ]
+      },
+      {
+        "key": "PROTO-002",
+        "summary": "Set up Continue KB Phase 1 FastAPI backend and health endpoint",
+        "type": "Task",
+        "priority": "Medium",
+        "status": "Ready",
+        "description": "Set up Continue KB Phase 1 FastAPI backend and health endpoint. Generated from the approved prototype specification and ready for engineering refinement.",
+        "acceptance": [
+          "The user can complete the main workflow described in the approved specification.",
+          "The UI includes empty, loading, success, and error states where relevant.",
+          "The implementation follows the Vue + TypeScript frontend and FastAPI backend contract.",
+          "The feature can be validated through the prototype preview or local Docker Compose runtime."
+        ],
+        "implementation": [
+          "Keep changes scoped to this ticket and preserve existing project execution behaviour.",
+          "Use the approved specification as the source of truth.",
+          "Add clear API contracts and user-facing validation for the main path."
+        ],
+        "files": [
+          "frontend/src/App.vue",
+          "frontend/src/main.ts",
+          "frontend/src/style.css",
+          "backend/app/main.py"
+        ]
+      }
+    ]
+  },
+  {
+    "key": "EPIC-002",
+    "title": "Core Product Experience",
+    "summary": "Implement the main user workflow from the approved specification.",
+    "tickets": [
+      {
+        "key": "PROTO-003",
+        "summary": "Implement Continue KB Phase 1 dashboard and primary workflow",
+        "type": "Story",
+        "priority": "High",
+        "status": "Ready",
+        "description": "Implement Continue KB Phase 1 dashboard and primary workflow. Generated from the approved prototype specification and ready for engineering refinement.",
+        "acceptance": [
+          "The user can complete the main workflow described in the approved specification.",
+          "The UI includes empty, loading, success, and error states where relevant.",
+          "The implementation follows the Vue + TypeScript frontend and FastAPI backend contract.",
+          "The feature can be validated through the prototype preview or local Docker Compose runtime."
+        ],
+        "implementation": [
+          "Keep changes scoped to this ticket and preserve existing project execution behaviour.",
+          "Use the approved specification as the source of truth.",
+          "Add clear API contracts and user-facing validation for the main path."
+        ],
+        "files": [
+          "frontend/src/App.vue",
+          "frontend/src/main.ts",
+          "frontend/src/style.css",
+          "backend/app/main.py"
+        ]
+      },
+      {
+        "key": "PROTO-004",
+        "summary": "Add Continue KB Phase 1 representative data and review states",
+        "type": "Story",
+        "priority": "Medium",
+        "status": "Ready",
+        "description": "Add Continue KB Phase 1 representative data and review states. Generated from the approved prototype specification and ready for engineering refinement.",
+        "acceptance": [
+          "The user can complete the main workflow described in the approved specification.",
+          "The UI includes empty, loading, success, and error states where relevant.",
+          "The implementation follows the Vue + TypeScript frontend and FastAPI backend contract.",
+          "The feature can be validated through the prototype preview or local Docker Compose runtime."
+        ],
+        "implementation": [
+          "Keep changes scoped to this ticket and preserve existing project execution behaviour.",
+          "Use the approved specification as the source of truth.",
+          "Add clear API contracts and user-facing validation for the main path."
+        ],
+        "files": [
+          "frontend/src/App.vue",
+          "frontend/src/main.ts",
+          "frontend/src/style.css",
+          "backend/app/main.py"
+        ]
+      }
+    ]
+  },
+  {
+    "key": "EPIC-003",
+    "title": "Continuity and Handoff",
+    "summary": "Prepare the prototype for project execution and future follow-up work.",
+    "tickets": [
+      {
+        "key": "PROTO-005",
+        "summary": "Generate Continue KB Phase 1 project handoff and Jira-ready ticket detail",
+        "type": "Story",
+        "priority": "Medium",
+        "status": "Ready",
+        "description": "Generate Continue KB Phase 1 project handoff and Jira-ready ticket detail. Generated from the approved prototype specification and ready for engineering refinement.",
+        "acceptance": [
+          "The user can complete the main workflow described in the approved specification.",
+          "The UI includes empty, loading, success, and error states where relevant.",
+          "The implementation follows the Vue + TypeScript frontend and FastAPI backend contract.",
+          "The feature can be validated through the prototype preview or local Docker Compose runtime."
+        ],
+        "implementation": [
+          "Keep changes scoped to this ticket and preserve existing project execution behaviour.",
+          "Use the approved specification as the source of truth.",
+          "Add clear API contracts and user-facing validation for the main path."
+        ],
+        "files": [
+          "frontend/src/App.vue",
+          "frontend/src/main.ts",
+          "frontend/src/style.css",
+          "backend/app/main.py"
+        ]
+      }
+    ]
+  }
+]

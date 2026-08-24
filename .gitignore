@@ -1,0 +1,60 @@
+# OS / editor
+.DS_Store
+__MACOSX/
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+.preview_venv/
+
+# Node / frontend
+node_modules/
+frontend/node_modules/
+dist/
+build/
+frontend/dist/
+frontend/build/
+.vite/
+frontend/.vite/
+coverage/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
+frontend/playwright/.cache/
+
+# Prototype / preview runtime artifacts
+.preview_artifacts/
+.prototype_preview.json
+prototype_artifacts/
+prototype-runs/
+workspace.zip
+preview.png
+preview.html
+
+# Claude Code (personal, not team-shared)
+.claude/settings.local.json
+
+# Logs / temp
+*.log
+logs/
+tmp/
+temp/
+.cache/

@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
+    "verify": "cd frontend && npm run verify"
+  }
+}

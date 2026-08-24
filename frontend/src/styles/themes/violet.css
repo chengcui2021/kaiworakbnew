@@ -1,0 +1,44 @@
+/* =====================================================
+   VIOLET THEME (Light)
+
+   Violet-themed light variant with purple accents.
+===================================================== */
+
+.theme-violet {
+  --radius: 0.625rem;
+  --background: oklch(0.99 0.01 280);
+  --foreground: oklch(0.2 0.05 280);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.05 280);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.05 280);
+  --primary: oklch(0.5 0.2 280);
+  --primary-foreground: oklch(0.98 0.01 280);
+  --secondary: oklch(0.95 0.05 280);
+  --secondary-foreground: oklch(0.3 0.1 280);
+  --muted: oklch(0.96 0.03 280);
+  --muted-foreground: oklch(0.5 0.08 280);
+  --accent: oklch(0.92 0.08 280);
+  --accent-foreground: oklch(0.3 0.1 280);
+  --destructive: var(--error);
+  --destructive-foreground: var(--error-foreground);
+  --border: oklch(0.9 0.05 280);
+  --input: oklch(0.9 0.05 280);
+  --ring: oklch(0.55 0.18 280);
+  --chart-1: oklch(0.6 0.22 280);
+  --chart-2: oklch(0.55 0.18 300);
+  --chart-3: oklch(0.5 0.15 260);
+  --chart-4: oklch(0.65 0.2 290);
+  --chart-5: oklch(0.58 0.19 270);
+  --sidebar: oklch(0.98 0.02 280);
+  --sidebar-foreground: oklch(0.2 0.05 280);
+  --sidebar-primary: oklch(0.5 0.2 280);
+  --sidebar-primary-foreground: oklch(0.98 0.01 280);
+  --sidebar-accent: oklch(0.95 0.05 280);
+  --sidebar-accent-foreground: oklch(0.3 0.1 280);
+  --sidebar-border: oklch(0.9 0.05 280);
+  --sidebar-ring: oklch(0.55 0.18 280);
+  --table-header-background: #ededed;
+  --table-row-background: #f5f5f5;
+  --table-border: #e0e0e0;
+}

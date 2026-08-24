@@ -1,0 +1,376 @@
+{
+  "prototype_id": "proto-7ea54aef5528",
+  "title": "Improve The Existing Knowledge",
+  "idea": "Improve the existing Knowledge Base repository by adding Workspace Support.\n\nRequirements:\n\n1. Add a Workspace model.\n\n2. Add a Workspace management page where users can:\n   - create workspace\n   - rename workspace\n   - delete workspace\n\n3. Each document must belong to a workspace.\n\n4. Add a workspace selector in the main UI.\n\n5. Search results should only return documents from the selected workspace.\n\n6. Display workspace statistics:\n   - total documents\n   - total chunks\n   - total embeddings\n\n7. Add workspace information to search results:\n   - workspace name\n   - document name\n   - chunk metadata\n\n8. Maintain all existing functionality.\n\n9. Maintain backwards compatibility with existing documents.\n\n10. Ensure the application builds and runs successfully in Docker.\n\n11. Update frontend and backend as required.\n\n12. Create database migration if necessary.\n\n13. Improve the UI to make workspace switching clear and user friendly.",
+  "spec_version": 1,
+  "parent_evolution_number": null,
+  "base_evolution_version": null,
+  "base_commit_sha": "",
+  "git_branch": "evolution-1",
+  "context_assemblies": {
+    "target_stack": {
+      "frontend": "Vue 3 + TypeScript + Vite",
+      "backend": "Python + FastAPI",
+      "runtime": "Docker Compose"
+    },
+    "spec_assembly": {
+      "source": "approved_spec",
+      "inputs": [
+        "idea",
+        "feedback",
+        "previous_spec"
+      ],
+      "output": "spec_markdown"
+    },
+    "architecture_assembly": {
+      "source": "fallback after LLM error: Unterminated string starting at: line 2 column 28 (char 29)",
+      "inputs": [
+        "spec_markdown",
+        "target_stack"
+      ],
+      "output": "architecture_markdown"
+    },
+    "execution_assembly": {
+      "source": "fallback after LLM error: Expecting ',' delimiter: line 259 column 10 (char 20993)",
+      "inputs": [
+        "spec_markdown",
+        "architecture_markdown"
+      ],
+      "output": "epics/tickets"
+    },
+    "source_mode": "new_scaffold",
+    "existing_repo": {
+      "enabled": false,
+      "repo_url": "https://github.com/Luminar-Consulting-Org/metamorphic-kb",
+      "base_branch": "main"
+    },
+    "code_generation": {
+      "source": "claude-cli",
+      "inputs": [
+        "spec_markdown",
+        "architecture_markdown",
+        "epics",
+        "target_stack"
+      ],
+      "outputs": [
+        "README.md",
+        "backend/.claude/BACKEND_STRUCTURE.md",
+        "backend/Dockerfile",
+        "backend/app/__init__.py",
+        "backend/app/main.py",
+        "backend/app/schemas/__init__.py",
+        "backend/app/schemas/models.py",
+        "backend/app/services/__init__.py",
+        "backend/app/services/store.py",
+        "backend/requirements.txt",
+        "docker-compose.yml",
+        "docs/architecture.md",
+        "docs/epics.json",
+        "docs/evolution-requirements.md",
+        "docs/prototype-input.json",
+        "docs/prototype-spec.md",
+        "frontend/.claude/FRONTEND_STRUCTURE.md",
+        "frontend/.dockerignore",
+        "frontend/Dockerfile",
+        "frontend/index.html",
+        "frontend/package-lock.json",
+        "frontend/package.json",
+        "frontend/src/App.vue",
+        "frontend/src/api/index.ts",
+        "frontend/src/components/ConfirmDialog.vue",
+        "frontend/src/components/DocumentForm.vue",
+        "frontend/src/components/SearchResultCard.vue",
+        "frontend/src/components/StatCard.vue",
+        "frontend/src/components/WorkspaceSelector.vue",
+        "frontend/src/main.ts",
+        "frontend/src/pages/DocumentsPage.vue",
+        "frontend/src/pages/SearchPage.vue",
+        "frontend/src/pages/WorkspacesPage.vue",
+        "frontend/src/router/index.ts",
+        "frontend/src/services/apiClient.ts",
+        "frontend/src/stores/workspace.ts",
+        "frontend/src/style.css",
+        "frontend/src/types/domain.ts",
+        "frontend/src/utils/format.ts",
+        "frontend/src/vite-env.d.ts",
+        "frontend/tsconfig.json",
+        "frontend/vite.config.ts"
+      ]
+    }
+  },
+  "epics": [
+    {
+      "key": "EPIC-001",
+      "title": "Prototype Foundation",
+      "summary": "Create the runnable Vue/FastAPI prototype foundation.",
+      "tickets": [
+        {
+          "key": "PROTO-001",
+          "summary": "Set up Improve The Existing Knowledge Vue + TypeScript frontend scaffold",
+          "type": "Task",
+          "priority": "High",
+          "status": "Ready",
+          "description": "Set up Improve The Existing Knowledge Vue + TypeScript frontend scaffold. Generated from the approved prototype specification and ready for engineering refinement.",
+          "acceptance": [
+            "The user can complete the main workflow described in the approved specification.",
+            "The UI includes empty, loading, success, and error states where relevant.",
+            "The implementation follows the Vue + TypeScript frontend and FastAPI backend contract.",
+            "The feature can be validated through the prototype preview or local Docker Compose runtime."
+          ],
+          "implementation": [
+            "Keep changes scoped to this ticket and preserve existing project execution behaviour.",
+            "Use the approved specification as the source of truth.",
+            "Add clear API contracts and user-facing validation for the main path."
+          ],
+          "files": [
+            "frontend/src/App.vue",
+            "frontend/src/main.ts",
+            "frontend/src/style.css",
+            "backend/app/main.py"
+          ]
+        },
+        {
+          "key": "PROTO-002",
+          "summary": "Set up Improve The Existing Knowledge FastAPI backend and health endpoint",
+          "type": "Task",
+          "priority": "Medium",
+          "status": "Ready",
+          "description": "Set up Improve The Existing Knowledge FastAPI backend and health endpoint. Generated from the approved prototype specification and ready for engineering refinement.",
+          "acceptance": [
+            "The user can complete the main workflow described in the approved specification.",
+            "The UI includes empty, loading, success, and error states where relevant.",
+            "The implementation follows the Vue + TypeScript frontend and FastAPI backend contract.",
+            "The feature can be validated through the prototype preview or local Docker Compose runtime."
+          ],
+          "implementation": [
+            "Keep changes scoped to this ticket and preserve existing project execution behaviour.",
+            "Use the approved specification as the source of truth.",
+            "Add clear API contracts and user-facing validation for the main path."
+          ],
+          "files": [
+            "frontend/src/App.vue",
+            "frontend/src/main.ts",
+            "frontend/src/style.css",
+            "backend/app/main.py"
+          ]
+        }
+      ]
+    },
+    {
+      "key": "EPIC-002",
+      "title": "Core Product Experience",
+      "summary": "Implement the main user workflow from the approved specification.",
+      "tickets": [
+        {
+          "key": "PROTO-003",
+          "summary": "Implement Improve The Existing Knowledge dashboard and primary workflow",
+          "type": "Story",
+          "priority": "High",
+          "status": "Ready",
+          "description": "Implement Improve The Existing Knowledge dashboard and primary workflow. Generated from the approved prototype specification and ready for engineering refinement.",
+          "acceptance": [
+            "The user can complete the main workflow described in the approved specification.",
+            "The UI includes empty, loading, success, and error states where relevant.",
+            "The implementation follows the Vue + TypeScript frontend and FastAPI backend contract.",
+            "The feature can be validated through the prototype preview or local Docker Compose runtime."
+          ],
+          "implementation": [
+            "Keep changes scoped to this ticket and preserve existing project execution behaviour.",
+            "Use the approved specification as the source of truth.",
+            "Add clear API contracts and user-facing validation for the main path."
+          ],
+          "files": [
+            "frontend/src/App.vue",
+            "frontend/src/main.ts",
+            "frontend/src/style.css",
+            "backend/app/main.py"
+          ]
+        },
+        {
+          "key": "PROTO-004",
+          "summary": "Add Improve The Existing Knowledge representative data and review states",
+          "type": "Story",
+          "priority": "Medium",
+          "status": "Ready",
+          "description": "Add Improve The Existing Knowledge representative data and review states. Generated from the approved prototype specification and ready for engineering refinement.",
+          "acceptance": [
+            "The user can complete the main workflow described in the approved specification.",
+            "The UI includes empty, loading, success, and error states where relevant.",
+            "The implementation follows the Vue + TypeScript frontend and FastAPI backend contract.",
+            "The feature can be validated through the prototype preview or local Docker Compose runtime."
+          ],
+          "implementation": [
+            "Keep changes scoped to this ticket and preserve existing project execution behaviour.",
+            "Use the approved specification as the source of truth.",
+            "Add clear API contracts and user-facing validation for the main path."
+          ],
+          "files": [
+            "frontend/src/App.vue",
+            "frontend/src/main.ts",
+            "frontend/src/style.css",
+            "backend/app/main.py"
+          ]
+        }
+      ]
+    },
+    {
+      "key": "EPIC-003",
+      "title": "Continuity and Handoff",
+      "summary": "Prepare the prototype for project execution and future follow-up work.",
+      "tickets": [
+        {
+          "key": "PROTO-005",
+          "summary": "Generate Improve The Existing Knowledge project handoff and Jira-ready ticket detail",
+          "type": "Story",
+          "priority": "Medium",
+          "status": "Ready",
+          "description": "Generate Improve The Existing Knowledge project handoff and Jira-ready ticket detail. Generated from the approved prototype specification and ready for engineering refinement.",
+          "acceptance": [
+            "The user can complete the main workflow described in the approved specification.",
+            "The UI includes empty, loading, success, and error states where relevant.",
+            "The implementation follows the Vue + TypeScript frontend and FastAPI backend contract.",
+            "The feature can be validated through the prototype preview or local Docker Compose runtime."
+          ],
+          "implementation": [
+            "Keep changes scoped to this ticket and preserve existing project execution behaviour.",
+            "Use the approved specification as the source of truth.",
+            "Add clear API contracts and user-facing validation for the main path."
+          ],
+          "files": [
+            "frontend/src/App.vue",
+            "frontend/src/main.ts",
+            "frontend/src/style.css",
+            "backend/app/main.py"
+          ]
+        }
+      ]
+    }
+  ],
+  "tickets": [
+    {
+      "key": "PROTO-001",
+      "summary": "Set up Improve The Existing Knowledge Vue + TypeScript frontend scaffold",
+      "type": "Task",
+      "priority": "High",
+      "status": "Ready",
+      "description": "Set up Improve The Existing Knowledge Vue + TypeScript frontend scaffold. Generated from the approved prototype specification and ready for engineering refinement.",
+      "acceptance": [
+        "The user can complete the main workflow described in the approved specification.",
+        "The UI includes empty, loading, success, and error states where relevant.",
+        "The implementation follows the Vue + TypeScript frontend and FastAPI backend contract.",
+        "The feature can be validated through the prototype preview or local Docker Compose runtime."
+      ],
+      "implementation": [
+        "Keep changes scoped to this ticket and preserve existing project execution behaviour.",
+        "Use the approved specification as the source of truth.",
+        "Add clear API contracts and user-facing validation for the main path."
+      ],
+      "files": [
+        "frontend/src/App.vue",
+        "frontend/src/main.ts",
+        "frontend/src/style.css",
+        "backend/app/main.py"
+      ]
+    },
+    {
+      "key": "PROTO-002",
+      "summary": "Set up Improve The Existing Knowledge FastAPI backend and health endpoint",
+      "type": "Task",
+      "priority": "Medium",
+      "status": "Ready",
+      "description": "Set up Improve The Existing Knowledge FastAPI backend and health endpoint. Generated from the approved prototype specification and ready for engineering refinement.",
+      "acceptance": [
+        "The user can complete the main workflow described in the approved specification.",
+        "The UI includes empty, loading, success, and error states where relevant.",
+        "The implementation follows the Vue + TypeScript frontend and FastAPI backend contract.",
+        "The feature can be validated through the prototype preview or local Docker Compose runtime."
+      ],
+      "implementation": [
+        "Keep changes scoped to this ticket and preserve existing project execution behaviour.",
+        "Use the approved specification as the source of truth.",
+        "Add clear API contracts and user-facing validation for the main path."
+      ],
+      "files": [
+        "frontend/src/App.vue",
+        "frontend/src/main.ts",
+        "frontend/src/style.css",
+        "backend/app/main.py"
+      ]
+    },
+    {
+      "key": "PROTO-003",
+      "summary": "Implement Improve The Existing Knowledge dashboard and primary workflow",
+      "type": "Story",
+      "priority": "High",
+      "status": "Ready",
+      "description": "Implement Improve The Existing Knowledge dashboard and primary workflow. Generated from the approved prototype specification and ready for engineering refinement.",
+      "acceptance": [
+        "The user can complete the main workflow described in the approved specification.",
+        "The UI includes empty, loading, success, and error states where relevant.",
+        "The implementation follows the Vue + TypeScript frontend and FastAPI backend contract.",
+        "The feature can be validated through the prototype preview or local Docker Compose runtime."
+      ],
+      "implementation": [
+        "Keep changes scoped to this ticket and preserve existing project execution behaviour.",
+        "Use the approved specification as the source of truth.",
+        "Add clear API contracts and user-facing validation for the main path."
+      ],
+      "files": [
+        "frontend/src/App.vue",
+        "frontend/src/main.ts",
+        "frontend/src/style.css",
+        "backend/app/main.py"
+      ]
+    },
+    {
+      "key": "PROTO-004",
+      "summary": "Add Improve The Existing Knowledge representative data and review states",
+      "type": "Story",
+      "priority": "Medium",
+      "status": "Ready",
+      "description": "Add Improve The Existing Knowledge representative data and review states. Generated from the approved prototype specification and ready for engineering refinement.",
+      "acceptance": [
+        "The user can complete the main workflow described in the approved specification.",
+        "The UI includes empty, loading, success, and error states where relevant.",
+        "The implementation follows the Vue + TypeScript frontend and FastAPI backend contract.",
+        "The feature can be validated through the prototype preview or local Docker Compose runtime."
+      ],
+      "implementation": [
+        "Keep changes scoped to this ticket and preserve existing project execution behaviour.",
+        "Use the approved specification as the source of truth.",
+        "Add clear API contracts and user-facing validation for the main path."
+      ],
+      "files": [
+        "frontend/src/App.vue",
+        "frontend/src/main.ts",
+        "frontend/src/style.css",
+        "backend/app/main.py"
+      ]
+    },
+    {
+      "key": "PROTO-005",
+      "summary": "Generate Improve The Existing Knowledge project handoff and Jira-ready ticket detail",
+      "type": "Story",
+      "priority": "Medium",
+      "status": "Ready",
+      "description": "Generate Improve The Existing Knowledge project handoff and Jira-ready ticket detail. Generated from the approved prototype specification and ready for engineering refinement.",
+      "acceptance": [
+        "The user can complete the main workflow described in the approved specification.",
+        "The UI includes empty, loading, success, and error states where relevant.",
+        "The implementation follows the Vue + TypeScript frontend and FastAPI backend contract.",
+        "The feature can be validated through the prototype preview or local Docker Compose runtime."
+      ],
+      "implementation": [
+        "Keep changes scoped to this ticket and preserve existing project execution behaviour.",
+        "Use the approved specification as the source of truth.",
+        "Add clear API contracts and user-facing validation for the main path."
+      ],
+      "files": [
+        "frontend/src/App.vue",
+        "frontend/src/main.ts",
+        "frontend/src/style.css",
+        "backend/app/main.py"
+      ]
+    }
+  ]
+}

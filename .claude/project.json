@@ -1,0 +1,21 @@
+{
+  "$comment": "Per-repo data for the frontend-standards plugin hooks. The hook LOGIC lives in the plugin; only this file changes per repo.",
+  "frontendDir": "frontend",
+  "verifyCmd": "npm run verify",
+  "untestedFile": "UNTESTED.md",
+  "p0Files": [
+    "src/stores/workspace.ts",
+    "src/services/useAPI.ts",
+    "src/services/useWorkspaceService.ts"
+  ],
+  "criticalFiles": [
+    "src/stores/workspace.ts",
+    "src/services/useAPI.ts",
+    "src/services/useWorkspaceService.ts"
+  ],
+  "$comment_skipSkills": "This repo uses neither vee-validate nor TanStack Table — see the phase-7 decision to avoid TanStack Table. Re-add here if either is ever adopted.",
+  "skipSkills": ["vee-validate", "tanstack-table"],
+  "localSkills": {
+    "e2e": "Playwright e2e patterns for this app (repo-local: ports, routes and fixtures are app-specific)"
+  }
+}

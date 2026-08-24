@@ -1,0 +1,258 @@
+name: Deploy
+
+# Build/push images to ECR, then deploy on EC2 via SSM.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-central-1
+  REGISTRY: 613602870295.dkr.ecr.eu-central-1.amazonaws.com
+  API_IMAGE_NAME: metamorphic-kb-api
+  WEB_IMAGE_NAME: metamorphic-kb-web
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build preview stack
+        run: docker compose build
+      - name: Create CI env file
+        run: |
+          cat > .env <<EOF
+          APP_NAME=metamorphic-kb
+          DEBUG=false
+          DATABASE_URL=postgresql+asyncpg://metamorphic:metamorphic@db:5432/metamorphic_kb
+          AWS_REGION=${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          BEDROCK_EMBEDDING_MODEL_ID=${{ secrets.BEDROCK_EMBEDDING_MODEL_ID }}
+          BEDROCK_EMBEDDING_DIMENSIONS=${{ secrets.BEDROCK_EMBEDDING_DIMENSIONS }}
+          BEDROCK_LLM_MODEL_ID=${{ secrets.BEDROCK_LLM_MODEL_ID }}
+          BEDROCK_LLM_MAX_TOKENS=${{ secrets.BEDROCK_LLM_MAX_TOKENS }}
+          BEDROCK_LLM_TEMPERATURE=${{ secrets.BEDROCK_LLM_TEMPERATURE }}
+          JIRA_BASE_URL=${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL=${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN=${{ secrets.JIRA_API_TOKEN }}
+          JIRA_STORY_POINTS_FIELD=${{ secrets.JIRA_STORY_POINTS_FIELD }}
+          EOF
+
+      - name: Start preview stack
+        run: docker compose up -d
+      - name: Wait for API health
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose ps
+          docker compose logs backend --tail 120
+          exit 1
+      - name: Stop stack
+        if: always()
+        run: docker compose down -v
+
+  build_and_push:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.API_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ env.REGISTRY }}/${{ env.API_IMAGE_NAME }}:latest
+
+      - name: Build and push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}:latest
+
+  deploy:
+    needs: build_and_push
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: eu-central-1
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      INSTANCE_ID: ${{ secrets.DEPLOY_INSTANCE_ID }}
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy via SSM
+        env:
+          REGISTRY_HOST: ${{ env.REGISTRY }}
+          API_IMAGE: ${{ env.REGISTRY }}/${{ env.API_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          WEB_IMAGE: ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          DATABASE_URL: postgresql+asyncpg://metamorphic:admin321@metamorphic-kb-db.czw64iio6bdb.eu-central-1.rds.amazonaws.com:5432/metamorphic_kb?ssl=require
+          APP_AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          APP_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          BEDROCK_EMBEDDING_MODEL_ID: ${{ secrets.BEDROCK_EMBEDDING_MODEL_ID }}
+          BEDROCK_EMBEDDING_DIMENSIONS: ${{ secrets.BEDROCK_EMBEDDING_DIMENSIONS }}
+          BEDROCK_LLM_MODEL_ID: ${{ secrets.BEDROCK_LLM_MODEL_ID }}
+          BEDROCK_LLM_MAX_TOKENS: ${{ secrets.BEDROCK_LLM_MAX_TOKENS }}
+          BEDROCK_LLM_TEMPERATURE: ${{ secrets.BEDROCK_LLM_TEMPERATURE }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_STORY_POINTS_FIELD: ${{ secrets.JIRA_STORY_POINTS_FIELD }}
+        run: |
+          set -euo pipefail
+
+          trim() {
+            local value="$1"
+            value="${value//$'\r'/}"
+            value="${value//$'\n'/}"
+            value="${value#"${value%%[![:space:]]*}"}"
+            value="${value%"${value##*[![:space:]]}"}"
+            printf '%s' "$value"
+          }
+
+          INSTANCE_ID="$(trim "${INSTANCE_ID:-}")"
+          if [[ -z "${INSTANCE_ID}" ]]; then
+            echo "ERROR: Set DEPLOY_INSTANCE_ID in the production environment secrets." >&2
+            exit 1
+          fi
+
+          DEPLOY_PATH="$(trim "${DEPLOY_PATH:-/opt/metamorphic-kb}")"
+          echo "Deploy target: instance=${INSTANCE_ID} path=${DEPLOY_PATH}"
+
+          cat > /tmp/metamorphic-kb-deploy.sh <<'REMOTE'
+          #!/bin/bash
+          set -euo pipefail
+          REMOTE
+
+          cat >> /tmp/metamorphic-kb-deploy.sh <<REMOTE
+          chown -R ubuntu:ubuntu "${DEPLOY_PATH}"
+          sudo -u ubuntu -H bash -s <<'INNER'
+          set -euo pipefail
+          git config --global --add safe.directory "${DEPLOY_PATH}"
+          cd "${DEPLOY_PATH}"
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+          cat > .env <<'ENVEOF'
+          APP_NAME=metamorphic-kb
+          DEBUG=false
+          DATABASE_URL=${DATABASE_URL}
+          AWS_REGION=${AWS_REGION}
+          AWS_ACCESS_KEY_ID=${APP_AWS_ACCESS_KEY_ID}
+          AWS_SECRET_ACCESS_KEY=${APP_AWS_SECRET_ACCESS_KEY}
+          BEDROCK_EMBEDDING_MODEL_ID=${BEDROCK_EMBEDDING_MODEL_ID}
+          BEDROCK_EMBEDDING_DIMENSIONS=${BEDROCK_EMBEDDING_DIMENSIONS}
+          BEDROCK_LLM_MODEL_ID=${BEDROCK_LLM_MODEL_ID}
+          BEDROCK_LLM_MAX_TOKENS=${BEDROCK_LLM_MAX_TOKENS}
+          BEDROCK_LLM_TEMPERATURE=${BEDROCK_LLM_TEMPERATURE}
+          JIRA_BASE_URL=${JIRA_BASE_URL}
+          JIRA_EMAIL=${JIRA_EMAIL}
+          JIRA_API_TOKEN=${JIRA_API_TOKEN}
+          JIRA_STORY_POINTS_FIELD=${JIRA_STORY_POINTS_FIELD}
+          ENVEOF
+          export REGISTRY_HOST="${REGISTRY_HOST}"
+          export AWS_REGION="${AWS_REGION}"
+          export API_IMAGE="${API_IMAGE}"
+          export WEB_IMAGE="${WEB_IMAGE}"
+          chmod +x scripts/deploy.sh
+          ./scripts/deploy.sh
+          INNER
+          REMOTE
+
+          PARAMS=$(jq -n --rawfile cmd /tmp/metamorphic-kb-deploy.sh '{commands: [$cmd]}')
+
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "${INSTANCE_ID}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "metamorphic-kb deploy ${GITHUB_SHA}" \
+            --timeout-seconds 1200 \
+            --parameters "${PARAMS}" \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "SSM command id: ${COMMAND_ID}"
+
+          for _ in $(seq 1 120); do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" \
+              --instance-id "${INSTANCE_ID}" \
+              --query "Status" \
+              --output text 2>/dev/null || echo "Pending")
+
+            case "${STATUS}" in
+              Success) break ;;
+              Pending|InProgress) ;;
+              Failed|Cancelled|TimedOut)
+                echo "SSM command failed with status: ${STATUS}" >&2
+                aws ssm get-command-invocation \
+                  --command-id "${COMMAND_ID}" \
+                  --instance-id "${INSTANCE_ID}" \
+                  --query '[StandardOutputContent,StandardErrorContent]' \
+                  --output text
+                exit 1
+                ;;
+            esac
+            sleep 5
+          done
+
+          aws ssm get-command-invocation \
+            --command-id "${COMMAND_ID}" \
+            --instance-id "${INSTANCE_ID}" \
+            --query "StandardOutputContent" \
+            --output text
+
+          FINAL=$(aws ssm get-command-invocation \
+            --command-id "${COMMAND_ID}" \
+            --instance-id "${INSTANCE_ID}" \
+            --query "Status" \
+            --output text)
+
+          if [[ "${FINAL}" != "Success" ]]; then
+            echo "Deploy did not succeed (status=${FINAL})" >&2
+            aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" \
+              --instance-id "${INSTANCE_ID}" \
+              --query '[StandardOutputContent,StandardErrorContent]' \
+              --output text
+            exit 1
+          fi

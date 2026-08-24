@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+#
+# Pre-push quality gate. Blocks a push if typecheck, lint, or tests fail.
+# Frontend lives under frontend/ — run all checks from there.
+#
+# Wired via root package.json: "prepare": "git config core.hooksPath .githooks"
+# Run `npm install` from repo root (or `git config core.hooksPath .githooks` once).
+#
+# Escape hatch (WIP branches): git push --no-verify
+#
+set -euo pipefail
+
+echo "▶ pre-push: typecheck (vue-tsc --noEmit)…"
+cd "$(git rev-parse --show-toplevel)/frontend"
+npm run --silent typecheck
+
+echo "▶ pre-push: lint (eslint)…"
+npm run --silent lint:check
+
+echo "▶ pre-push: tests (vitest run)…"
+npm run --silent test:unit
+
+echo "✓ pre-push gate passed."
