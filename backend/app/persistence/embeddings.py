@@ -7,6 +7,9 @@ import json
 import logging
 from functools import lru_cache
 from typing import Any, Protocol
+import os
+import urllib.request
+import urllib.error
 
 from botocore.exceptions import BotoCoreError, ClientError
 from pydantic import Field, field_validator
@@ -127,12 +130,54 @@ class BedrockEmbeddingService:
         return result
 
 
+class LocalEmbeddingService:
+    """OpenAI-compatible local embedding endpoint for customer-controlled nodes."""
+
+    def __init__(self) -> None:
+        self.base_url = os.getenv("LOCAL_EMBEDDING_BASE_URL", "http://127.0.0.1:11434/v1").rstrip("/")
+        self.model = os.getenv("LOCAL_EMBEDDING_MODEL", "bge-m3")
+        self.api_key = os.getenv("LOCAL_EMBEDDING_API_KEY", "")
+        self.timeout = float(os.getenv("LOCAL_EMBEDDING_TIMEOUT_SECONDS", "60") or "60")
+
+    async def embed_text(self, text: str) -> list[float]:
+        if not text or not text.strip():
+            raise ValueError("content must be non-empty for embedding")
+
+        def _invoke() -> list[float]:
+            payload = json.dumps({"model": self.model, "input": text}).encode("utf-8")
+            headers = {"Content-Type": "application/json", "Accept": "application/json"}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+            req = urllib.request.Request(f"{self.base_url}/embeddings", data=payload, headers=headers, method="POST")
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as response:
+                    body = json.loads(response.read().decode("utf-8"))
+            except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError) as exc:
+                raise RuntimeError("Local embedding request failed") from exc
+            data = body.get("data") or []
+            vector = data[0].get("embedding") if data and isinstance(data[0], dict) else None
+            if not isinstance(vector, list):
+                raise RuntimeError("Local embedding response missing embedding vector")
+            return [float(x) for x in vector]
+
+        result = await asyncio.to_thread(_invoke)
+        if len(result) != EMBEDDING_DIMENSION:
+            raise RuntimeError(
+                f"expected embedding dim {EMBEDDING_DIMENSION}, got {len(result)}; "
+                "configure a local embedding model that emits 1024 dimensions"
+            )
+        return result
+
+
 @lru_cache(maxsize=1)
 def get_embedding_settings() -> EmbeddingSettings:
     return EmbeddingSettings()
 
 
 @lru_cache(maxsize=1)
-def get_embedding_service() -> BedrockEmbeddingService:
-    """FastAPI dependency: Bedrock Titan embeddings (one client per process)."""
-    return BedrockEmbeddingService(get_embedding_settings())
+def get_embedding_service() -> EmbeddingService:
+    """FastAPI dependency: local/private embeddings by default; Bedrock remains optional."""
+    provider = os.getenv("EMBEDDING_PROVIDER", "local").strip().lower()
+    if provider in {"bedrock", "aws"}:
+        return BedrockEmbeddingService(get_embedding_settings())
+    return LocalEmbeddingService()

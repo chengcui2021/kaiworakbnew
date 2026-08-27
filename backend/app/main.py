@@ -11,11 +11,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes import context_assembly, documents, packages, search, workspaces, workstreams
-from app.routes_persistent import entries as persistent_entries, semantic_search as persistent_search, tags as persistent_tags, jira_links as persistent_jira_links, persistence_health, templates as persistent_templates, transform as persistent_transform, llm_usage as persistent_llm_usage, learning as governed_learning
+from app.routes_persistent import entries as persistent_entries, semantic_search as persistent_search, tags as persistent_tags, jira_links as persistent_jira_links, persistence_health, templates as persistent_templates, transform as persistent_transform, llm_usage as persistent_llm_usage, learning as governed_learning, ingestion as persistent_ingestion, node_profile as kaiwora_node_profile
 
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="Continue KB Phase 1.5", version="1.5.0")
+app = FastAPI(title="Kaiwora Knowledge Intelligence", version="1.6.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,17 +44,19 @@ app.include_router(persistent_templates.router)
 app.include_router(persistent_transform.router)
 app.include_router(persistent_llm_usage.router)
 app.include_router(governed_learning.router)
+app.include_router(persistent_ingestion.router)
+app.include_router(kaiwora_node_profile.router)
 
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "service": "continue-kb", "version": "1.5.0"}
+    return {"status": "ok", "service": "kaiwora-kb", "version": "1.6.0"}
 
 
 @app.get("/")
 def root() -> dict:
     return {
-        "service": "Continue KB Phase 1.5",
+        "service": "Kaiwora Knowledge Intelligence",
         "endpoints": [
             "/health",
             "/api/workspaces",

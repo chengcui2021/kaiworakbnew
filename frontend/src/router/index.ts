@@ -11,6 +11,7 @@ import SubmitEntryPage from '../pages/SubmitEntryPage.vue'
 import BrowseEntriesPage from '../pages/BrowseEntriesPage.vue'
 import TagsPage from '../pages/TagsPage.vue'
 import TemplatesPage from '../pages/TemplatesPage.vue'
+import KnowledgeSourcesPage from '../pages/KnowledgeSourcesPage.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -75,6 +76,12 @@ export const router = createRouter({
         layout: 'DefaultLayout',
         breadcrumb: [{ label: 'Search', to: null }],
       },
+    },
+    {
+      path: '/sources',
+      name: 'knowledge-sources',
+      component: KnowledgeSourcesPage,
+      meta: { layout: 'DefaultLayout', breadcrumb: [{ label: 'Knowledge Sources', to: null }] },
     },
     {
       path: '/submit',

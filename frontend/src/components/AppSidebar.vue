@@ -10,6 +10,7 @@ import {
   FilePlus2,
   Library,
   PackageCheck,
+  GitBranch,
   Search,
   Stethoscope,
   Tags,
@@ -49,6 +50,7 @@ const navItems = [
 const entryNavItems = [
   { title: 'Workspaces', to: '/workspaces', icon: Boxes },
   { title: 'Workstreams', to: '/workstreams', icon: Boxes },
+  { title: 'Knowledge Sources', to: '/sources', icon: GitBranch },
   { title: 'Submit Entry', to: '/submit', icon: FilePlus2 },
   { title: 'Browse Entries', to: '/browse', icon: Library },
   { title: 'Search', to: '/search', icon: Search },
@@ -101,8 +103,8 @@ onMounted(async () => {
                 <BookOpen class="size-4" aria-hidden="true" />
               </div>
               <div class="flex flex-col gap-0.5 leading-none">
-                <span class="font-semibold">Continue KB</span>
-                <span class="text-xs">Workspace Knowledge Base</span>
+                <span class="font-semibold">Kaiwora KB</span>
+                <span class="text-xs">Governed Engineering Knowledge</span>
               </div>
             </RouterLink>
           </SidebarMenuButton>
