@@ -32,7 +32,7 @@ from app.schemas.context_assembly import (
     ResolvedKnowledgeItem,
 )
 from app.services.knowledge_context import sha256_digest
-from app.services.tenant_scope import entry_scope_predicate
+from app.services.tenant_scope import entry_is_authorized, entry_scope_predicate
 
 RESOLVER_VERSION = "2"
 _LEXICAL_ENTRY_LIMIT = 100
@@ -144,6 +144,10 @@ async def _load_approved_scope_entries(
     for entry in entries:
         if entry.status != EntryStatus.RESOLVED:
             continue
+        if not entry_is_authorized(
+            entry, tenant_id=tenant_id, workspace_id=workspace_id, repository_id=repository_id
+        ):
+            continue
         if shared and entry.workstream_id is not None:
             continue
         if not shared and workstream_id is not None and entry.workstream_id != workstream_id:
@@ -224,11 +228,11 @@ async def resolve_knowledge(
                 db, workstream_id=workstream_id, shared=False, tenant_id=tenant_id, workspace_id=workspace_id, repository_id=repository_id
             ):
                 scope_entries[str(entry.id)] = entry
-                scope_names[str(entry.id)] = str(getattr(entry, "owner_scope", "global") or "global")
+                scope_names[str(entry.id)] = "workstream"
         if include_shared:
             for entry in await _load_approved_scope_entries(db, workstream_id=None, shared=True, tenant_id=tenant_id, workspace_id=workspace_id, repository_id=repository_id):
                 scope_entries[str(entry.id)] = entry
-                scope_names.setdefault(str(entry.id), str(getattr(entry, "owner_scope", "global") or "global"))
+                scope_names.setdefault(str(entry.id), "shared")
     except Exception as exc:
         raise KnowledgeResolutionUnavailableError(
             "KB search failed during automatic knowledge resolution."
@@ -247,10 +251,12 @@ async def resolve_knowledge(
             continue
         semantic_component = max(0.0, semantic if semantic is not None else 0.0)
         score = round((semantic_component * 0.85) + (lexical * 0.15), 8)
-        scope = scope_names.get(entry_id, str(getattr(entry, "owner_scope", "global") or "global"))
+        scope = scope_names.get(entry_id, "shared" if entry.workstream_id is None else "workstream")
+        owner_scope = str(getattr(entry, "owner_scope", "global") or "global")
         reason_bits = [
             "approved/resolved",
             f"{scope} knowledge scope",
+            f"{owner_scope} owner scope",
         ]
         if semantic is not None:
             reason_bits.append(f"semantic similarity {semantic:.3f}")
@@ -278,8 +284,8 @@ async def resolve_knowledge(
     # deterministic per-scope budgets before the existing global max_entries
     # cap. This changes only selection precision; eligibility, ranking and the
     # final approved-entry gate remain unchanged.
-    local_ranked = [row for row in ranked if row[2].scope != "global"]
-    global_ranked = [row for row in ranked if row[2].scope == "global"]
+    local_ranked = [row for row in ranked if row[2].scope == "workstream"]
+    global_ranked = [row for row in ranked if row[2].scope == "shared"]
     scoped_ranked = (
         local_ranked[:_WORKSTREAM_SELECTION_LIMIT]
         + global_ranked[:_SHARED_SELECTION_LIMIT]

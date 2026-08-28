@@ -406,7 +406,12 @@ class GovernedInputsRef(BaseModel):
 
 
 class ContextAssemblyLock(BaseModel):
-    """A Governed Context Assembly frozen for downstream consumption."""
+    """A Governed Context Assembly frozen for downstream consumption.
+
+    ``governed_context`` is carried as the immutable snapshot for consumers
+    that receive the lock directly. It is optional for backward compatibility
+    with already-persisted pre-V5 lock payloads.
+    """
 
     lock_id: str
     assembly_version: str
@@ -414,6 +419,7 @@ class ContextAssemblyLock(BaseModel):
     input_digests: dict[str, str] = Field(default_factory=dict)
     governed_inputs: GovernedInputsRef
     created_at: str
+    governed_context: GovernedContextAssembly | None = None
 
 
 class ContextAssemblyLockResource(BaseModel):

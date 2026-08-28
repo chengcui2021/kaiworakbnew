@@ -3168,3 +3168,63 @@ def test_repository_file_access_semantics_change_context_hash(client):
     assert second.status_code == 201, second.text
     assert first.json()["context_hash"] != second.json()["context_hash"]
     assert first.json()["lock_id"] != second.json()["lock_id"]
+
+# ---------------------------------------------------------------------------
+# Kaiwora Cloud V5.0.1 persisted-lock compatibility + isolation regressions
+# ---------------------------------------------------------------------------
+
+def test_cloud_lock_requires_exact_scope_when_not_default(client):
+    payload = lingyu_analysis_request(
+        tenant_id="tenant-a",
+        workspace_id="workspace-a",
+        repository_id="repository-a",
+    )
+    created = client.post("/api/governed-context/lock-from-analysis", json=payload)
+    assert created.status_code == 201, created.text
+    lock_id = created.json()["lock_id"]
+
+    # Cloud-owned locks never fall back to the legacy unscoped contract.
+    assert client.get(f"/api/governed-context/locks/{lock_id}").status_code == 404
+
+    allowed = client.get(
+        f"/api/governed-context/locks/{lock_id}",
+        params={
+            "tenant_id": "tenant-a",
+            "workspace_id": "workspace-a",
+            "repository_id": "repository-a",
+        },
+    )
+    assert allowed.status_code == 200
+
+
+def test_cloud_lock_cross_tenant_scope_is_denied(client):
+    payload = lingyu_analysis_request(
+        tenant_id="tenant-a",
+        workspace_id="workspace-a",
+        repository_id="repository-a",
+    )
+    lock_id = client.post("/api/governed-context/lock-from-analysis", json=payload).json()["lock_id"]
+
+    denied = client.get(
+        f"/api/governed-context/locks/{lock_id}",
+        params={
+            "tenant_id": "tenant-b",
+            "workspace_id": "workspace-a",
+            "repository_id": "repository-a",
+        },
+    )
+    assert denied.status_code == 404
+
+
+def test_cloud_lock_partial_scope_fails_closed(client):
+    payload = lingyu_analysis_request(
+        tenant_id="tenant-a",
+        workspace_id="workspace-a",
+        repository_id="repository-a",
+    )
+    lock_id = client.post("/api/governed-context/lock-from-analysis", json=payload).json()["lock_id"]
+    response = client.get(
+        f"/api/governed-context/locks/{lock_id}",
+        params={"tenant_id": "tenant-a", "workspace_id": "workspace-a"},
+    )
+    assert response.status_code == 404

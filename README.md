@@ -187,3 +187,7 @@ Validated customer outcomes remain tenant-private in `learning_entries`. When a 
 ## Kaiwora Cloud V4.4 compatibility
 
 No KB schema change is required for the V4.4 execution queue. The V4.3 multi-tenant knowledge and governed network-learning contract remains compatible. See `docs/KAIWORA_CLOUD_V4_4_COMPATIBILITY.md`.
+
+## Cloud V5.0.1 KB regression maintenance
+
+See `docs/KAIWORA_CLOUD_V5_0_1_REGRESSION_FIX.md`. This release preserves V5 multi-tenancy/global learning while restoring legacy Context Lock and resolver contracts and tightening global-learning sanitisation.

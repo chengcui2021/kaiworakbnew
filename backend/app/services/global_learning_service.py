@@ -9,15 +9,15 @@ READY='ready_for_review'; APPROVED='approved'; REJECTED='rejected'; DEFERRED='de
 
 def sanitise_observation(text: str) -> str:
     value=' '.join(str(text or '').split())
-    value=re.sub(r'https?://\\S+', '[url]', value)
-    value=re.sub(r'\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b', '[email]', value, flags=re.I)
+    value=re.sub(r'https?://\S+', '[url]', value)
+    value=re.sub(r'\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b', '[email]', value, flags=re.I)
     value=re.sub(r'(?<![A-Za-z0-9_])(?:[A-Za-z0-9_.-]+/){1,}[A-Za-z0-9_.-]+', '[repository-path]', value)
-    value=re.sub(r'\\b[0-9a-f]{32,64}\\b', '[hash]', value, flags=re.I)
-    value=re.sub(r'\\b[0-9a-f]{8}-[0-9a-f-]{27,}\\b', '[id]', value, flags=re.I)
+    value=re.sub(r'\b[0-9a-f]{32,64}\b', '[hash]', value, flags=re.I)
+    value=re.sub(r'\b[0-9a-f]{8}-[0-9a-f-]{27,}\b', '[id]', value, flags=re.I)
     return value[:4000]
 
 def global_fingerprint(knowledge_type: str, observation: str) -> str:
-    norm=re.sub(r'\\s+', ' ', observation.strip().lower())
+    norm=re.sub(r'\s+', ' ', observation.strip().lower())
     return hashlib.sha256(f'{knowledge_type}|{norm}'.encode()).hexdigest()
 
 async def maybe_create_global_candidate(db: AsyncSession, learning: LearningEntryDB, *, contribution_enabled: bool) -> GlobalLearningCandidateDB | None:

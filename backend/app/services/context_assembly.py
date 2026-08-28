@@ -579,6 +579,7 @@ def lock_assembly(assembly: GovernedContextAssembly) -> ContextAssemblyLock:
         input_digests=dict(assembly.input_digests),
         governed_inputs=governed_inputs,
         created_at=_now(),
+        governed_context=assembly,
     )
 
 

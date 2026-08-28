@@ -8,7 +8,6 @@ Assembly Lock, and checking an existing lock for staleness.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.persistence.database import get_db
@@ -326,6 +325,32 @@ async def create_context_lock(
 
 
 
+def _lock_scope_matches(
+    row: ContextAssemblyLockDB,
+    *,
+    tenant_id: str | None,
+    workspace_id: str | None,
+    repository_id: str | None,
+) -> bool:
+    """Authorise persisted lock access without weakening Cloud isolation.
+
+    Cloud locks (non-default tenant/workspace) always require the complete
+    server-derived scope tuple. Legacy/internal locks created before Cloud
+    tenancy used the reserved ``default/default`` scope and remain retrievable
+    without query parameters for backwards compatibility.
+    """
+    supplied = (tenant_id, workspace_id, repository_id)
+    if all(value is None for value in supplied):
+        return str(row.tenant_id or "default") == "default" and str(row.workspace_id or "default") == "default"
+    if any(value is None for value in supplied):
+        return False
+    return (
+        str(row.tenant_id) == str(tenant_id)
+        and str(row.workspace_id) == str(workspace_id)
+        and str(row.repository_id or "") == str(repository_id or "")
+    )
+
+
 @router.get(
     "/locks/{lock_id}",
     response_model=ContextAssemblyLockResource,
@@ -333,13 +358,15 @@ async def create_context_lock(
 )
 async def get_context_lock(
     lock_id: str,
-    tenant_id: str = Query(..., min_length=1),
-    workspace_id: str = Query(..., min_length=1),
-    repository_id: str = Query(..., min_length=1),
+    tenant_id: str | None = Query(default=None, min_length=1),
+    workspace_id: str | None = Query(default=None, min_length=1),
+    repository_id: str | None = Query(default=None, min_length=1),
     db: AsyncSession = Depends(get_db),
 ) -> ContextAssemblyLockResource:
     row = await db.get(ContextAssemblyLockDB, lock_id)
-    if row is None or row.tenant_id != tenant_id or row.workspace_id != workspace_id or row.repository_id != repository_id:
+    if row is None or not _lock_scope_matches(
+        row, tenant_id=tenant_id, workspace_id=workspace_id, repository_id=repository_id
+    ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Context Assembly Lock not found")
     return ContextAssemblyLockResource(
         lock=ContextAssemblyLock.model_validate(row.lock_payload),
@@ -354,13 +381,15 @@ async def get_context_lock(
 )
 async def get_context_lock_status(
     lock_id: str,
-    tenant_id: str = Query(..., min_length=1),
-    workspace_id: str = Query(..., min_length=1),
-    repository_id: str = Query(..., min_length=1),
+    tenant_id: str | None = Query(default=None, min_length=1),
+    workspace_id: str | None = Query(default=None, min_length=1),
+    repository_id: str | None = Query(default=None, min_length=1),
     db: AsyncSession = Depends(get_db),
 ) -> LockStatusResponse:
     row = await db.get(ContextAssemblyLockDB, lock_id)
-    if row is None or row.tenant_id != tenant_id or row.workspace_id != workspace_id or row.repository_id != repository_id:
+    if row is None or not _lock_scope_matches(
+        row, tenant_id=tenant_id, workspace_id=workspace_id, repository_id=repository_id
+    ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Context Assembly Lock not found")
     lock = ContextAssemblyLock.model_validate(row.lock_payload)
     stored = row.request_payload or {}
