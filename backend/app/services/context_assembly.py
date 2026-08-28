@@ -557,8 +557,15 @@ def assemble_governed_context(
 # ---------------------------------------------------------------------------
 
 
-def lock_assembly(assembly: GovernedContextAssembly) -> ContextAssemblyLock:
-    """Freeze an assembly into a lock that identifies its governed inputs."""
+def lock_assembly(
+    assembly: GovernedContextAssembly, *, include_governed_context: bool = False
+) -> ContextAssemblyLock:
+    """Freeze an assembly into a lock that identifies its governed inputs.
+
+    The legacy lock contract contains only the immutable lock metadata. Analysis
+    consumers may explicitly request the governed-context snapshot in the direct
+    response; the exact assembly is persisted separately for all lock types.
+    """
     governed_inputs = GovernedInputsRef(
         request_id=assembly.requirement_context.request_id,
         request_digest=assembly.requirement_context.digest,
@@ -579,7 +586,7 @@ def lock_assembly(assembly: GovernedContextAssembly) -> ContextAssemblyLock:
         input_digests=dict(assembly.input_digests),
         governed_inputs=governed_inputs,
         created_at=_now(),
-        governed_context=assembly,
+        governed_context=assembly if include_governed_context else None,
     )
 
 

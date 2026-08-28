@@ -247,7 +247,7 @@ async def create_context_lock_from_analysis(
     db: AsyncSession = Depends(get_db),
 ) -> ContextAssemblyLock:
     assembly = await _assemble_from_analysis(payload, db)
-    lock = lock_assembly(assembly)
+    lock = lock_assembly(assembly, include_governed_context=True)
     row = await db.get(ContextAssemblyLockDB, lock.lock_id)
     lock_payload = lock.model_dump(mode="json")
     assembly_payload = assembly.model_dump(mode="json")
@@ -292,6 +292,7 @@ async def assemble_context(
 @router.post(
     "/lock",
     response_model=ContextAssemblyLock,
+    response_model_exclude_none=True,
     status_code=status.HTTP_201_CREATED,
     summary="Convert a successful Governed Context Assembly into a Context Assembly Lock",
 )
