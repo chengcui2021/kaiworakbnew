@@ -136,6 +136,9 @@ def build_requirement_context_from_analysis(
     analysis_source: str = "lingyu",
     analysis_id: str | None = None,
     analysis_hash: str | None = None,
+    tenant_id: str = "default",
+    workspace_id: str = "default",
+    repository_id: str = "",
 ) -> RequirementAnalysisContext:
     """Freeze externally-produced requirement intelligence without reinterpreting it."""
     title = payload.title.strip()
@@ -157,6 +160,9 @@ def build_requirement_context_from_analysis(
         "analysis_source": (analysis_source or "lingyu").strip(),
         "analysis_id": (analysis_id or "").strip() or None,
         "analysis_hash": (analysis_hash or "").strip() or None,
+        "tenant_id": str(tenant_id or "default"),
+        "workspace_id": str(workspace_id or "default"),
+        "repository_id": str(repository_id or ""),
         "source": (payload.source or "").strip() or None,
     }
     digest_data = {k: v for k, v in data.items() if k != "analysis_id"}
@@ -192,6 +198,8 @@ def build_repository_context_from_analysis(
             path=path,
             language=(item.language or "").strip() or None,
             role=(item.role or "").strip() or None,
+            context_role=item.context_role,
+            access=item.access,
         ))
     files.sort(key=lambda x: x.path)
     source = (analysis_source or "lingyu").strip()
@@ -252,6 +260,8 @@ def build_repository_context(payload: RepositoryInput) -> RepositoryAnalysisCont
                 path=path,
                 language=(item.language or "").strip() or None,
                 role=(item.role or "").strip() or None,
+                context_role=item.context_role,
+                access=item.access,
             )
         )
     files.sort(key=lambda f: f.path)
@@ -266,7 +276,14 @@ def build_repository_context(payload: RepositoryInput) -> RepositoryAnalysisCont
             "branch": (payload.branch or "").strip() or None,
             "commit_sha": commit_sha.lower(),
             "files": [
-                {"path": f.path, "language": f.language, "role": f.role} for f in files
+                {
+                    "path": f.path,
+                    "language": f.language,
+                    "role": f.role,
+                    "context_role": f.context_role,
+                    "access": f.access,
+                }
+                for f in files
             ],
             "analysis_mode": REPOSITORY_ANALYSIS_MODE,
         }

@@ -32,8 +32,9 @@ from app.schemas.context_assembly import (
     ResolvedKnowledgeItem,
 )
 from app.services.knowledge_context import sha256_digest
+from app.services.tenant_scope import entry_scope_predicate
 
-RESOLVER_VERSION = "1"
+RESOLVER_VERSION = "2"
 _LEXICAL_ENTRY_LIMIT = 100
 _WORKSTREAM_SELECTION_LIMIT = 5
 _SHARED_SELECTION_LIMIT = 3
@@ -120,8 +121,14 @@ async def _load_approved_scope_entries(
     *,
     workstream_id: UUID | None,
     shared: bool,
+    tenant_id: str,
+    workspace_id: str,
+    repository_id: str,
 ) -> list[Entry]:
-    stmt = select(Entry).where(Entry.status == EntryStatus.RESOLVED)
+    stmt = select(Entry).where(
+        Entry.status == EntryStatus.RESOLVED,
+        entry_scope_predicate(tenant_id=tenant_id, workspace_id=workspace_id, repository_id=repository_id),
+    )
     if shared:
         stmt = stmt.where(Entry.workstream_id.is_(None))
     elif workstream_id is not None:
@@ -152,6 +159,9 @@ async def resolve_knowledge(
     requirement: RequirementAnalysisInput,
     repository: RepositoryAnalysisInput,
     workstream_id: UUID | None,
+    tenant_id: str = "",
+    workspace_id: str = "",
+    repository_id: str = "",
     include_shared: bool = True,
     max_entries: int = 12,
     min_similarity: float = 0.25,
@@ -166,7 +176,7 @@ async def resolve_knowledge(
     if workstream_id is None and not include_shared:
         payload = {
             "resolver_version": RESOLVER_VERSION, "mode": "automatic", "query": query,
-            "workstream_id": None, "include_shared": False, "selected": [],
+            "workstream_id": None, "include_shared": False, "tenant_id": tenant_id, "workspace_id": workspace_id, "repository_id": repository_id, "selected": [],
         }
         return KnowledgeResolution(**payload, resolution_hash=sha256_digest(payload))
 
@@ -197,6 +207,10 @@ async def resolve_knowledge(
                 workstream_id=scope_workstream,
                 unassigned=unassigned,
                 status=EntryStatus.RESOLVED,
+                tenant_id=tenant_id,
+                workspace_id=workspace_id,
+                repository_id=repository_id,
+                enforce_tenant_scope=True,
                 limit=candidate_limit,
             )
             for item in response.results:
@@ -207,14 +221,14 @@ async def resolve_knowledge(
         scope_names: dict[str, str] = {}
         if workstream_id is not None:
             for entry in await _load_approved_scope_entries(
-                db, workstream_id=workstream_id, shared=False
+                db, workstream_id=workstream_id, shared=False, tenant_id=tenant_id, workspace_id=workspace_id, repository_id=repository_id
             ):
                 scope_entries[str(entry.id)] = entry
-                scope_names[str(entry.id)] = "workstream"
+                scope_names[str(entry.id)] = str(getattr(entry, "owner_scope", "global") or "global")
         if include_shared:
-            for entry in await _load_approved_scope_entries(db, workstream_id=None, shared=True):
+            for entry in await _load_approved_scope_entries(db, workstream_id=None, shared=True, tenant_id=tenant_id, workspace_id=workspace_id, repository_id=repository_id):
                 scope_entries[str(entry.id)] = entry
-                scope_names.setdefault(str(entry.id), "shared")
+                scope_names.setdefault(str(entry.id), str(getattr(entry, "owner_scope", "global") or "global"))
     except Exception as exc:
         raise KnowledgeResolutionUnavailableError(
             "KB search failed during automatic knowledge resolution."
@@ -233,10 +247,10 @@ async def resolve_knowledge(
             continue
         semantic_component = max(0.0, semantic if semantic is not None else 0.0)
         score = round((semantic_component * 0.85) + (lexical * 0.15), 8)
-        scope = scope_names.get(entry_id, "shared")
+        scope = scope_names.get(entry_id, str(getattr(entry, "owner_scope", "global") or "global"))
         reason_bits = [
             "approved/resolved",
-            "project workstream" if scope == "workstream" else "shared engineering knowledge",
+            f"{scope} knowledge scope",
         ]
         if semantic is not None:
             reason_bits.append(f"semantic similarity {semantic:.3f}")
@@ -264,11 +278,11 @@ async def resolve_knowledge(
     # deterministic per-scope budgets before the existing global max_entries
     # cap. This changes only selection precision; eligibility, ranking and the
     # final approved-entry gate remain unchanged.
-    workstream_ranked = [row for row in ranked if row[2].scope == "workstream"]
-    shared_ranked = [row for row in ranked if row[2].scope == "shared"]
+    local_ranked = [row for row in ranked if row[2].scope != "global"]
+    global_ranked = [row for row in ranked if row[2].scope == "global"]
     scoped_ranked = (
-        workstream_ranked[:_WORKSTREAM_SELECTION_LIMIT]
-        + shared_ranked[:_SHARED_SELECTION_LIMIT]
+        local_ranked[:_WORKSTREAM_SELECTION_LIMIT]
+        + global_ranked[:_SHARED_SELECTION_LIMIT]
     )
     scoped_ranked.sort(key=lambda value: (-value[0], value[1]))
     selected = [item for _score, _entry_id, item in scoped_ranked[:max_entries]]
@@ -278,6 +292,9 @@ async def resolve_knowledge(
         "query": query,
         "workstream_id": str(workstream_id) if workstream_id else None,
         "include_shared": include_shared,
+        "tenant_id": tenant_id,
+        "workspace_id": workspace_id,
+        "repository_id": repository_id,
         "selected": [item.model_dump(mode="json") for item in selected],
     }
     return KnowledgeResolution(

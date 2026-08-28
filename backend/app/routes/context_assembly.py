@@ -7,7 +7,7 @@ Assembly Lock, and checking an existing lock for staleness.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,6 +45,7 @@ from app.services.knowledge_resolver import (
     KnowledgeResolutionUnavailableError,
     resolve_knowledge,
 )
+from app.services.tenant_scope import filter_authorized_entries
 from app.services.knowledge_context import (
     UnapprovedEntryError,
     UnknownEntryIdsError,
@@ -87,6 +88,9 @@ async def _assemble(payload: GovernedContextRequest, db: AsyncSession) -> Govern
                 f"Not approved/resolved: {exc.entry_ids}"
             ),
         ) from exc
+    entries = filter_authorized_entries(entries, tenant_id="", workspace_id="", repository_id="")
+    if len(entries) != len(payload.knowledge.entry_ids):
+        raise HTTPException(status_code=404, detail="One or more knowledge entries are outside the authorised scope")
     knowledge = build_knowledge_context(entries)
 
     try:
@@ -114,6 +118,9 @@ async def _assemble_from_analysis(
             analysis_source=payload.analysis_source,
             analysis_id=payload.analysis_id,
             analysis_hash=payload.analysis_hash,
+            tenant_id=payload.tenant_id,
+            workspace_id=payload.workspace_id,
+            repository_id=payload.repository_id or str(payload.repository_analysis.url or payload.repository_analysis.name or ""),
         )
     except RequirementValidationError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
@@ -138,6 +145,9 @@ async def _assemble_from_analysis(
                 requirement=payload.requirement_analysis,
                 repository=payload.repository_analysis,
                 workstream_id=payload.knowledge.workstream_id,
+                tenant_id=payload.tenant_id,
+                workspace_id=payload.workspace_id,
+                repository_id=payload.repository_id or str(payload.repository_analysis.url or payload.repository_analysis.name or ""),
                 include_shared=payload.knowledge.include_shared,
                 max_entries=payload.knowledge.max_entries,
                 min_similarity=payload.knowledge.min_similarity,
@@ -161,11 +171,18 @@ async def _assemble_from_analysis(
             "Only approved/resolved knowledge can enter a governed context. "
             f"Not approved/resolved: {exc.entry_ids}"
         )) from exc
+    authorised_entries = filter_authorized_entries(
+        entries, tenant_id=payload.tenant_id, workspace_id=payload.workspace_id,
+        repository_id=payload.repository_id or str(payload.repository_analysis.url or payload.repository_analysis.name or ""),
+    )
+    if len(authorised_entries) != len(entries):
+        raise HTTPException(status_code=404, detail="One or more knowledge entries are outside the authorised tenant scope")
+    entries = authorised_entries
     learning_entries = await reusable_learning(
         db,
         payload.tenant_id,
         payload.workspace_id,
-        str(payload.repository_analysis.url or payload.repository_analysis.name or ""),
+        payload.repository_id or str(payload.repository_analysis.url or payload.repository_analysis.name or ""),
     )
     knowledge = build_knowledge_context(entries, resolution=resolution, learning_entries=learning_entries)
     try:
@@ -195,6 +212,9 @@ async def resolve_context_knowledge(
             requirement=payload.requirement_analysis,
             repository=payload.repository_analysis,
             workstream_id=payload.workstream_id,
+            tenant_id=payload.tenant_id,
+            workspace_id=payload.workspace_id,
+            repository_id=payload.repository_id,
             include_shared=payload.include_shared,
             max_entries=payload.max_entries,
             min_similarity=payload.min_similarity,
@@ -241,6 +261,9 @@ async def create_context_lock_from_analysis(
             lock_id=lock.lock_id, context_hash=lock.context_hash,
             lock_payload=lock_payload, assembly_payload=assembly_payload,
             request_payload=request_payload,
+            tenant_id=payload.tenant_id,
+            workspace_id=payload.workspace_id,
+            repository_id=payload.repository_id or str(payload.repository_analysis.url or payload.repository_analysis.name or ""),
         )
         db.add(row)
     else:
@@ -248,6 +271,9 @@ async def create_context_lock_from_analysis(
         row.lock_payload = lock_payload
         row.assembly_payload = assembly_payload
         row.request_payload = request_payload
+        row.tenant_id = payload.tenant_id
+        row.workspace_id = payload.workspace_id
+        row.repository_id = payload.repository_id or str(payload.repository_analysis.url or payload.repository_analysis.name or "")
     await db.commit()
     return lock
 
@@ -307,10 +333,13 @@ async def create_context_lock(
 )
 async def get_context_lock(
     lock_id: str,
+    tenant_id: str = Query(..., min_length=1),
+    workspace_id: str = Query(..., min_length=1),
+    repository_id: str = Query(..., min_length=1),
     db: AsyncSession = Depends(get_db),
 ) -> ContextAssemblyLockResource:
     row = await db.get(ContextAssemblyLockDB, lock_id)
-    if row is None:
+    if row is None or row.tenant_id != tenant_id or row.workspace_id != workspace_id or row.repository_id != repository_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Context Assembly Lock not found")
     return ContextAssemblyLockResource(
         lock=ContextAssemblyLock.model_validate(row.lock_payload),
@@ -325,10 +354,13 @@ async def get_context_lock(
 )
 async def get_context_lock_status(
     lock_id: str,
+    tenant_id: str = Query(..., min_length=1),
+    workspace_id: str = Query(..., min_length=1),
+    repository_id: str = Query(..., min_length=1),
     db: AsyncSession = Depends(get_db),
 ) -> LockStatusResponse:
     row = await db.get(ContextAssemblyLockDB, lock_id)
-    if row is None:
+    if row is None or row.tenant_id != tenant_id or row.workspace_id != workspace_id or row.repository_id != repository_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Context Assembly Lock not found")
     lock = ContextAssemblyLock.model_validate(row.lock_payload)
     stored = row.request_payload or {}

@@ -14,6 +14,7 @@ from app.persistence.entry_response import entry_to_response
 from app.persistence.models import ComponentName, Entry, EntryStatus, EntryTag, EntryType, Tag
 from app.persistence.schemas import SearchResponse, SearchResultItem
 from app.persistence.tag_service import normalize_tag_name
+from app.services.tenant_scope import entry_scope_predicate
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,10 @@ async def semantic_search(
     entry_type: EntryType | None = None,
     status: EntryStatus | None = None,
     tag: str | None = None,
+    tenant_id: str = "",
+    workspace_id: str = "",
+    repository_id: str = "",
+    enforce_tenant_scope: bool = False,
     limit: int = SEARCH_DEFAULT_LIMIT,
 ) -> SearchResponse:
     """Rank entries by cosine similarity to ``query_vector`` (normalized embeddings)."""
@@ -43,6 +48,9 @@ async def semantic_search(
         .order_by(distance)
         .limit(limit)
     )
+
+    if enforce_tenant_scope:
+        stmt = stmt.where(entry_scope_predicate(tenant_id=tenant_id, workspace_id=workspace_id, repository_id=repository_id))
 
     if unassigned:
         stmt = stmt.where(Entry.workstream_id.is_(None))

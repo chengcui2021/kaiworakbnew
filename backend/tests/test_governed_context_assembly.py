@@ -3111,3 +3111,60 @@ def test_legacy_lock_contract_remains_backward_compatible_after_analysis_support
     status_response = client.get(f"/api/governed-context/locks/{lock['lock_id']}/status")
     assert status_response.status_code == 200
     assert status_response.json()["stale"] is False
+
+
+def test_repository_file_semantics_are_preserved_in_analysis_lock(client):
+    payload = lingyu_analysis_request()
+    payload["repository_analysis"]["relevant_files"] = [
+        {
+            "path": "price.py",
+            "language": "python",
+            "role": "pricing",
+            "context_role": "implementation",
+            "access": "read_write",
+        },
+        {
+            "path": "tax_rules.py",
+            "language": "python",
+            "role": "tax",
+            "context_role": "verification",
+            "access": "read_only",
+        },
+    ]
+    created = client.post("/api/governed-context/lock-from-analysis", json=payload)
+    assert created.status_code == 201, created.text
+    files = created.json()["governed_context"]["repository_context"]["files"]
+    by_path = {item["path"]: item for item in files}
+    assert by_path["price.py"]["context_role"] == "implementation"
+    assert by_path["price.py"]["access"] == "read_write"
+    assert by_path["tax_rules.py"]["context_role"] == "verification"
+    assert by_path["tax_rules.py"]["access"] == "read_only"
+
+
+def test_repository_file_access_semantics_change_context_hash(client):
+    writable = lingyu_analysis_request()
+    writable["repository_analysis"]["relevant_files"] = [
+        {
+            "path": "tax_rules.py",
+            "language": "python",
+            "role": "tax",
+            "context_role": "verification",
+            "access": "read_write",
+        }
+    ]
+    protected = lingyu_analysis_request()
+    protected["repository_analysis"]["relevant_files"] = [
+        {
+            "path": "tax_rules.py",
+            "language": "python",
+            "role": "tax",
+            "context_role": "verification",
+            "access": "read_only",
+        }
+    ]
+    first = client.post("/api/governed-context/lock-from-analysis", json=writable)
+    second = client.post("/api/governed-context/lock-from-analysis", json=protected)
+    assert first.status_code == 201, first.text
+    assert second.status_code == 201, second.text
+    assert first.json()["context_hash"] != second.json()["context_hash"]
+    assert first.json()["lock_id"] != second.json()["lock_id"]

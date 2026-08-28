@@ -6,20 +6,21 @@ Uses in-memory mock data only.
 from __future__ import annotations
 
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routes import context_assembly, documents, packages, search, workspaces, workstreams
-from app.routes_persistent import entries as persistent_entries, semantic_search as persistent_search, tags as persistent_tags, jira_links as persistent_jira_links, persistence_health, templates as persistent_templates, transform as persistent_transform, llm_usage as persistent_llm_usage, learning as governed_learning, ingestion as persistent_ingestion, node_profile as kaiwora_node_profile
+from app.routes import context_assembly, documents, packages, search, workspaces, workstreams, cloud_tenancy
+from app.routes_persistent import entries as persistent_entries, semantic_search as persistent_search, tags as persistent_tags, jira_links as persistent_jira_links, persistence_health, templates as persistent_templates, transform as persistent_transform, llm_usage as persistent_llm_usage, learning as governed_learning, ingestion as persistent_ingestion, node_profile as kaiwora_node_profile, global_learning as global_learning_admin
 
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="Kaiwora Knowledge Intelligence", version="1.6.0")
+app = FastAPI(title="Kaiwora Knowledge Intelligence", version="1.8.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[x.strip() for x in os.getenv("KAIWORA_CORS_ORIGINS","http://localhost:3000").split(",") if x.strip()],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,6 +32,7 @@ app.include_router(documents.router)
 app.include_router(packages.router)
 app.include_router(search.router)
 app.include_router(context_assembly.router)
+app.include_router(cloud_tenancy.router)
 # Persistent KB management console routes restored from MDSU-41.
 # persistent_search must be registered before persistent_entries: both define
 # a route under /entries, and Starlette matches in registration order, so the
@@ -44,13 +46,14 @@ app.include_router(persistent_templates.router)
 app.include_router(persistent_transform.router)
 app.include_router(persistent_llm_usage.router)
 app.include_router(governed_learning.router)
+app.include_router(global_learning_admin.router)
 app.include_router(persistent_ingestion.router)
 app.include_router(kaiwora_node_profile.router)
 
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "service": "kaiwora-kb", "version": "1.6.0"}
+    return {"status": "ok", "service": "kaiwora-kb", "version": "1.8.0"}
 
 
 @app.get("/")

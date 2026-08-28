@@ -68,6 +68,61 @@ class Base(DeclarativeBase):
     """Base class for ORM models."""
 
 
+
+
+class TenantDB(Base):
+    """Top-level customer organisation boundary for Kaiwora Cloud."""
+
+    __tablename__ = "tenants"
+    __table_args__ = (Index("ix_tenants_slug", "slug", unique=True),)
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'active'"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class CloudWorkspaceDB(Base):
+    """Customer workspace owned by one tenant."""
+
+    __tablename__ = "cloud_workspaces"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "slug", name="uq_cloud_workspace_tenant_slug"),
+        Index("ix_cloud_workspaces_tenant", "tenant_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    tenant_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'active'"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class CloudRepositoryDB(Base):
+    """Repository registration owned by one tenant/workspace."""
+
+    __tablename__ = "cloud_repositories"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "workspace_id", "external_id", name="uq_cloud_repo_owner_external"),
+        Index("ix_cloud_repositories_scope", "tenant_id", "workspace_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    tenant_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    workspace_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("cloud_workspaces.id", ondelete="CASCADE"), nullable=False)
+    external_id: Mapped[str] = mapped_column(String(500), nullable=False)
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    url: Mapped[str] = mapped_column(Text(), nullable=False)
+    default_branch: Mapped[str] = mapped_column(String(300), nullable=False, server_default=text("'main'"))
+    status: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'active'"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
 class WorkstreamDB(Base):
     """Persistent workstream stored in PostgreSQL."""
 
@@ -109,6 +164,7 @@ class Entry(Base):
         Index("ix_entries_status", "status"),
         Index("ix_entries_created_at", "created_at"),
         Index("ix_entries_workstream_id", "workstream_id"),
+        Index("ix_entries_owner_scope", "owner_scope", "tenant_id", "workspace_id", "repository_id"),
         Index(
             "ix_entries_embedding_hnsw",
             "embedding",
@@ -152,6 +208,10 @@ class Entry(Base):
     title: Mapped[str] = mapped_column(String(ENTRY_TITLE_MAX_LENGTH), nullable=False)
     source: Mapped[str | None] = mapped_column(Text(), nullable=True)
     author: Mapped[str] = mapped_column(String(255), nullable=False)
+    owner_scope: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'global'"))
+    tenant_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    workspace_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    repository_id: Mapped[str | None] = mapped_column(Text(), nullable=True)
 
     status: Mapped[EntryStatus] = mapped_column(
         SQLEnum(
@@ -356,6 +416,9 @@ class ContextAssemblyLockDB(Base):
     lock_payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     assembly_payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     request_payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(String(255), nullable=False, server_default=text("'default'"), index=True)
+    workspace_id: Mapped[str] = mapped_column(String(255), nullable=False, server_default=text("'default'"), index=True)
+    repository_id: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -393,3 +456,30 @@ class LearningEntryDB(Base):
     provenance: Mapped[dict] = mapped_column(JSON(), nullable=False, server_default=text("'{}'::json"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class GlobalLearningCandidateDB(Base):
+    """Sanitised cross-customer learning proposal. Never authoritative until admin approval."""
+    __tablename__ = "global_learning_candidates"
+    __table_args__ = (
+        Index("ix_global_learning_review_status", "review_status"),
+        Index("ix_global_learning_fingerprint", "fingerprint"),
+        Index("ix_global_learning_source_tenant", "source_tenant_id"),
+    )
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    source_learning_entry_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("learning_entries.id", ondelete="CASCADE"), nullable=False)
+    source_tenant_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_workspace_id: Mapped[str] = mapped_column(String(255), nullable=False, server_default=text("'default'"))
+    source_repository_id: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
+    knowledge_type: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'procedural'"))
+    sanitised_observation: Mapped[str] = mapped_column(Text(), nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    confidence: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text("0"))
+    evidence_summary: Mapped[dict] = mapped_column(JSON(), nullable=False, server_default=text("'{}'::json"))
+    privacy_status: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'sanitised'"))
+    review_status: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'ready_for_review'"))
+    reviewed_by: Mapped[str] = mapped_column(String(255), nullable=False, server_default=text("''"))
+    review_note: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
+    approved_entry_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("entries.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

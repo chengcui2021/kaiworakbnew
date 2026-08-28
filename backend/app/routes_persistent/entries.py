@@ -20,6 +20,7 @@ from app.persistence.entry_service import delete_entry, update_entry
 from app.persistence.entry_status_service import EntryNotFoundError, update_entry_status
 from app.persistence.models import ComponentName, Entry, EntryPatchStatus, EntryStatus, EntryTag, EntryType
 from app.persistence.schemas import EntryCreate, EntryListResponse, EntryResponse, EntryStatusUpdate, EntryUpdate
+from app.services.tenant_scope import validate_entry_ownership
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,10 @@ async def put_entry(
     db: AsyncSession = Depends(get_db),
     embedder: EmbeddingService = Depends(get_embedding_service),
 ) -> EntryResponse:
+    try:
+        validate_entry_ownership(data.owner_scope, data.tenant_id, data.workspace_id, data.repository_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     # Fetch existing entry to compare content
     existing = await db.execute(select(Entry).where(Entry.id == entry_id))
     existing_entry = existing.scalar_one_or_none()
@@ -185,6 +190,10 @@ async def create_entry(
     db: AsyncSession = Depends(get_db),
     embedder: EmbeddingService = Depends(get_embedding_service),
 ) -> EntryResponse:
+    try:
+        validate_entry_ownership(data.owner_scope, data.tenant_id, data.workspace_id, data.repository_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     vector: list[float] | None = None
     try:
         vector = await embedder.embed_text(data.content)
@@ -212,6 +221,10 @@ async def create_entry(
         status=data.status or EntryStatus.OPEN,
         embedding=vector,
         workstream_id=data.workstream_id,
+        owner_scope=data.owner_scope,
+        tenant_id=data.tenant_id,
+        workspace_id=data.workspace_id,
+        repository_id=data.repository_id,
     )
     db.add(entry)
     try:

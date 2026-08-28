@@ -179,3 +179,11 @@ Convention skills auto-surface on each edit via the `inject-skill-pointers` hook
 This service is the internal governance/knowledge engine for Kaiwora. Customers do not manage Context Lock IDs. Agent Core sends structured requirement/repository analysis to `/api/governed-context/lock-from-analysis`; the lock remains an immutable internal execution contract.
 
 Completed governed runs publish tenant/workspace/repository-scoped evidence to `/api/internal/learning/candidates`. One run remains `candidate`; repeated successful high-confidence evidence can auto-promote the same fingerprint to `validated`. Candidate learning is never execution authority. Validated learning is exposed through `/api/internal/learning/reusable` for governed retrieval integration.
+
+## Kaiwora Cloud V4.3 — governed network learning
+
+Validated customer outcomes remain tenant-private in `learning_entries`. When a Node explicitly enables global contribution, only successful high-confidence outcomes are copied into `global_learning_candidates` after deterministic sanitisation. These candidates are never authoritative until a Kaiwora admin reviews them. Approval creates a resolved `owner_scope=global` Master KB entry; rejection/defer leaves the Master KB unchanged. Admin review endpoints require `X-Kaiwora-Admin-Key` matching `KAIWORA_ADMIN_API_KEY`.
+
+## Kaiwora Cloud V4.4 compatibility
+
+No KB schema change is required for the V4.4 execution queue. The V4.3 multi-tenant knowledge and governed network-learning contract remains compatible. See `docs/KAIWORA_CLOUD_V4_4_COMPATIBILITY.md`.

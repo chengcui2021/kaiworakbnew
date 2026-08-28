@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from uuid import UUID
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -66,6 +67,10 @@ class EntryCreate(BaseModel):
         default=None,
         description="Defaults to open when omitted",
     )
+    owner_scope: Literal["global", "tenant", "workspace", "repository"] = "global"
+    tenant_id: str | None = Field(default=None, max_length=255)
+    workspace_id: str | None = Field(default=None, max_length=255)
+    repository_id: str | None = Field(default=None, max_length=2000)
 
     workstream_id: UUID | None = Field(default=None, description="Optional workstream assignment")
 
@@ -103,6 +108,10 @@ class EntryResponse(BaseModel):
     source: str | None
     author: str
     status: EntryStatus
+    owner_scope: str = "global"
+    tenant_id: str | None = None
+    workspace_id: str | None = None
+    repository_id: str | None = None
     created_at: datetime
     updated_at: datetime
     workstream_id: UUID | None = None
@@ -138,6 +147,10 @@ class EntryUpdate(BaseModel):
     source: str | None = Field(default=None, max_length=10_000)
     author: str = Field(..., min_length=1, max_length=255)
     status: EntryStatus = Field(..., description="Lifecycle status")
+    owner_scope: Literal["global", "tenant", "workspace", "repository"] = "global"
+    tenant_id: str | None = Field(default=None, max_length=255)
+    workspace_id: str | None = Field(default=None, max_length=255)
+    repository_id: str | None = Field(default=None, max_length=2000)
 
     workstream_id: UUID | None = Field(default=None, description="Optional workstream reassignment")
 

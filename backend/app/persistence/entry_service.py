@@ -45,6 +45,10 @@ async def update_entry(
     entry.author = data.author
     entry.status = data.status
     entry.workstream_id = data.workstream_id
+    entry.owner_scope = data.owner_scope
+    entry.tenant_id = data.tenant_id
+    entry.workspace_id = data.workspace_id
+    entry.repository_id = data.repository_id
 
     if new_embedding is not None:
         entry.embedding = new_embedding

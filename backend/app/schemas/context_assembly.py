@@ -32,12 +32,19 @@ class EngineeringRequestInput(BaseModel):
 
 
 class RepositoryFileInput(BaseModel):
-    """A single file described by the caller. Never read from disk."""
+    """A single file described by the caller. Never read from disk.
+
+    ``context_role`` and ``access`` preserve execution semantics discovered by
+    repository analysis. A file may be required for understanding/validation
+    while remaining protected from mutation.
+    """
 
     model_config = ConfigDict(extra="forbid")
     path: str = Field(..., min_length=1, max_length=1000)
     language: str | None = Field(default=None, max_length=100)
     role: str | None = Field(default=None, max_length=100)
+    context_role: Literal["implementation", "verification"] = "implementation"
+    access: Literal["read_write", "read_only"] = "read_write"
 
 
 class RepositoryInput(BaseModel):
@@ -144,6 +151,9 @@ class KnowledgeResolutionRequest(BaseModel):
     requirement_analysis: RequirementAnalysisInput
     repository_analysis: RepositoryAnalysisInput
     workstream_id: UUID | None = None
+    tenant_id: str = Field(..., min_length=1, max_length=255)
+    workspace_id: str = Field(..., min_length=1, max_length=255)
+    repository_id: str = Field(..., min_length=1, max_length=2000)
     include_shared: bool = True
     max_entries: int = Field(default=12, ge=1, le=50)
     min_similarity: float = Field(default=0.25, ge=-1.0, le=1.0)
@@ -158,6 +168,7 @@ class GovernedContextFromAnalysisRequest(BaseModel):
     analysis_hash: str | None = Field(default=None, max_length=200)
     tenant_id: str = Field(default="default", min_length=1, max_length=255)
     workspace_id: str = Field(default="default", min_length=1, max_length=255)
+    repository_id: str = Field(default="", max_length=2000)
     requirement_analysis: RequirementAnalysisInput
     repository_analysis: RepositoryAnalysisInput
     knowledge: KnowledgeSelectionInput = Field(default_factory=KnowledgeSelectionInput)
@@ -196,6 +207,7 @@ class RequirementAnalysisContext(BaseModel):
     analysis_hash: str | None = None
     tenant_id: str = "default"
     workspace_id: str = "default"
+    repository_id: str = ""
     source: str | None = None
     digest: str
 
@@ -204,6 +216,8 @@ class RepositoryFileContext(BaseModel):
     path: str
     language: str | None = None
     role: str | None = None
+    context_role: Literal["implementation", "verification"] = "implementation"
+    access: Literal["read_write", "read_only"] = "read_write"
 
 
 class RepositoryAnalysisContext(BaseModel):
@@ -269,7 +283,7 @@ class ResolvedKnowledgeItem(BaseModel):
     title: str
     source: str | None = None
     workstream_id: str | None = None
-    scope: Literal["workstream", "shared"]
+    scope: Literal["global", "tenant", "workspace", "repository", "workstream", "shared"]
     semantic_similarity: float | None = None
     lexical_score: float = 0.0
     score: float
@@ -284,6 +298,9 @@ class KnowledgeResolution(BaseModel):
     query: str
     workstream_id: str | None = None
     include_shared: bool = True
+    tenant_id: str = ""
+    workspace_id: str = ""
+    repository_id: str = ""
     selected: list[ResolvedKnowledgeItem] = Field(default_factory=list)
     resolution_hash: str
 
