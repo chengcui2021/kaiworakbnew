@@ -292,7 +292,7 @@ async def assemble_context(
 @router.post(
     "/lock",
     response_model=ContextAssemblyLock,
-    response_model_exclude_none=True,
+    response_model_exclude={"governed_context"},
     status_code=status.HTTP_201_CREATED,
     summary="Convert a successful Governed Context Assembly into a Context Assembly Lock",
 )
@@ -355,6 +355,7 @@ def _lock_scope_matches(
 @router.get(
     "/locks/{lock_id}",
     response_model=ContextAssemblyLockResource,
+    response_model_exclude={"lock": {"governed_context"}},
     summary="Retrieve a persisted Context Assembly Lock and its governed assembly snapshot by ID",
 )
 async def get_context_lock(

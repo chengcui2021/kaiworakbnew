@@ -421,6 +421,18 @@ class ContextAssemblyLock(BaseModel):
     created_at: str
     governed_context: GovernedContextAssembly | None = None
 
+    def model_dump(self, *args, **kwargs):
+        """Preserve the legacy wire contract when no snapshot is attached.
+
+        ``governed_context`` is an opt-in extension used by analysis-derived
+        locks.  Omitting only this top-level optional extension keeps nested
+        nullable contract fields such as ``governed_inputs.request_id`` intact.
+        """
+        payload = super().model_dump(*args, **kwargs)
+        if self.governed_context is None:
+            payload.pop("governed_context", None)
+        return payload
+
 
 class ContextAssemblyLockResource(BaseModel):
     """Persisted downstream contract: lock plus the exact governed assembly snapshot it froze."""
