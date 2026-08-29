@@ -8,11 +8,13 @@ Assembly Lock, and checking an existing lock for staleness.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.persistence.database import get_db
 from app.persistence.embeddings import EmbeddingService, get_embedding_service
-from app.persistence.models import ContextAssemblyLockDB
+from app.persistence.models import ContextAssemblyLockDB, Entry
 from app.schemas.context_assembly import (
     ContextAssemblyLock,
     ContextAssemblyLockResource,
@@ -194,10 +196,53 @@ async def _assemble_from_analysis(
     return assemble_governed_context(requirement, repository, knowledge, governance)
 
 
+
+class AnalysisGuidanceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    analysis_text: str = Field(min_length=1, max_length=100000)
+    tenant_id: str = ""
+    workspace_id: str = ""
+    repository_id: str = ""
+    workstream_id: str | None = None
+    include_shared: bool = True
+    max_entries: int = Field(default=12, ge=1, le=30)
+
+@router.post('/analysis-guidance')
+async def analysis_guidance(payload: AnalysisGuidanceRequest, db: AsyncSession=Depends(get_db), embedder: EmbeddingService=Depends(get_embedding_service)):
+    """Return approved KB guidance for Agent-side requirement/transcript analysis.
+
+    Runtime analysis stays in the Agent. KB only resolves approved organisational
+    intelligence and returns immutable source snapshots with lineage.
+    """
+    from uuid import UUID
+    from app.schemas.context_assembly import RequirementAnalysisInput, RepositoryAnalysisInput
+    ws = None
+    if payload.workstream_id:
+        try: ws = UUID(payload.workstream_id)
+        except ValueError: raise HTTPException(422, 'Invalid workstream_id')
+    requirement = RequirementAnalysisInput(title='Agent analysis guidance', description=payload.analysis_text, acceptance_criteria=[])
+    repository = RepositoryAnalysisInput(name=payload.repository_id or 'unbound-analysis', url=None, branch=None, commit_sha='0000000', relevant_files=[], impacted_components=[], dependencies=[], architecture_context=[], analysis_evidence=['source=agent_pre_analysis'])
+    try:
+        resolution = await resolve_knowledge(db, embedder, requirement=requirement, repository=repository, workstream_id=ws, tenant_id=payload.tenant_id, workspace_id=payload.workspace_id, repository_id=payload.repository_id, include_shared=payload.include_shared, max_entries=payload.max_entries)
+    except KnowledgeResolutionUnavailableError as exc: raise HTTPException(503,str(exc)) from exc
+    except KnowledgeResolutionError as exc: raise HTTPException(422,str(exc)) from exc
+    ids=[x.entry_id for x in resolution.selected]
+    rows=[]
+    if ids:
+        result=await db.execute(select(Entry).where(Entry.id.in_(ids)))
+        by_id={str(x.id):x for x in result.scalars().all()}
+        for item in resolution.selected:
+            row=by_id.get(item.entry_id)
+            if row is not None and row.status.value == 'resolved':
+                rows.append({'entry_id':str(row.id),'title':row.title,'content':row.content,'source':row.source,'scope':item.scope,'score':item.score,'updated_at':row.updated_at.isoformat() if row.updated_at else None})
+    import hashlib, json
+    digest='sha256:'+hashlib.sha256(json.dumps(rows,sort_keys=True,separators=(',',':'),default=str).encode()).hexdigest()
+    return {'selected':[x.model_dump() for x in resolution.selected],'snapshots':rows,'guidance_hash':digest,'resolution_hash':resolution.resolution_hash}
+
 @router.post(
     "/resolve-knowledge",
     response_model=KnowledgeResolution,
-    summary="Resolve approved KB knowledge for LingYu requirement and repository analysis",
+    summary="Resolve approved KB knowledge for Kaiwora Agent requirement and repository analysis",
 )
 async def resolve_context_knowledge(
     payload: KnowledgeResolutionRequest,
@@ -227,7 +272,7 @@ async def resolve_context_knowledge(
 @router.post(
     "/assemble-from-analysis",
     response_model=GovernedContextAssembly,
-    summary="Assemble governed context from LingYu requirement and repository analysis",
+    summary="Assemble governed context from Kaiwora Agent requirement and repository analysis",
 )
 async def assemble_context_from_analysis(
     payload: GovernedContextFromAnalysisRequest,
@@ -240,7 +285,7 @@ async def assemble_context_from_analysis(
     "/lock-from-analysis",
     response_model=ContextAssemblyLock,
     status_code=status.HTTP_201_CREATED,
-    summary="Create a reusable Context Assembly Lock from LingYu analysis",
+    summary="Create a reusable Context Assembly Lock from Kaiwora Agent analysis",
 )
 async def create_context_lock_from_analysis(
     payload: GovernedContextFromAnalysisRequest,

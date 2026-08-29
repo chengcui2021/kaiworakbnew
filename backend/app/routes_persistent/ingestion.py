@@ -254,3 +254,48 @@ async def ingest_github(
         candidate_count=len(hydrated_candidates),
         candidates=[entry_to_response(entry) for entry in hydrated_candidates],
     )
+
+class TextIngestionRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    title: str = Field(..., min_length=1, max_length=255)
+    content: str = Field(..., min_length=1, max_length=100000)
+    source_label: str = Field(default='manual', max_length=1000)
+    source_type: str = Field(default='manual', pattern='^(manual|claude_skill|claude_md|agents_md|architecture|validation_playbook|coding_standard|security_policy|historical_pr|confluence|notion|document)$')
+    workstream_id: UUID | None = None
+    author: str = Field(default='Knowledge Ingestion', min_length=1, max_length=255)
+
+class UrlIngestionRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    url: str = Field(..., min_length=8, max_length=2000)
+    workstream_id: UUID | None = None
+    author: str = Field(default='Knowledge Ingestion', min_length=1, max_length=255)
+
+async def _open_candidate(db: AsyncSession, embedder: EmbeddingService, *, title: str, content: str, source: str, workstream_id: UUID | None, author: str) -> Entry:
+    vector = None
+    try:
+        vector = await embedder.embed_text(content)
+        if vector is not None and len(vector) != EMBEDDING_DIMENSION: vector = None
+    except Exception:
+        logger.warning('Embedding unavailable during knowledge ingestion')
+    entry = Entry(entry_type=EntryType.DOCUMENTATION, component_name=ComponentName.INGESTION, title=title[:255], content=content[:100000], source=source, author=author, status=EntryStatus.OPEN, embedding=vector, workstream_id=workstream_id)
+    db.add(entry); await db.commit(); await db.refresh(entry)
+    return entry
+
+@router.post('/text', status_code=status.HTTP_201_CREATED)
+async def ingest_text(data: TextIngestionRequest, db: AsyncSession=Depends(get_db), embedder: EmbeddingService=Depends(get_embedding_service)):
+    row=await _open_candidate(db,embedder,title=data.title.strip(),content=data.content.strip(),source=f'{data.source_type}:{data.source_label.strip() or "manual"}',workstream_id=data.workstream_id,author=data.author.strip())
+    return {'candidate_count':1,'candidate':entry_to_response(row),'status':'open','approval_required':True}
+
+@router.post('/url', status_code=status.HTTP_201_CREATED)
+async def ingest_url(data: UrlIngestionRequest, db: AsyncSession=Depends(get_db), embedder: EmbeddingService=Depends(get_embedding_service)):
+    if not data.url.lower().startswith(('https://','http://')): raise HTTPException(422,'URL must use http or https')
+    async with httpx.AsyncClient(timeout=20.0,follow_redirects=True) as client:
+        response=await client.get(data.url,headers={'User-Agent':'KaiworaKnowledgeIngestion/1.0'})
+    if response.status_code >= 400: raise HTTPException(502,f'Source URL returned HTTP {response.status_code}')
+    content_type=response.headers.get('content-type','').lower()
+    if not any(x in content_type for x in ('text/','json','xml','yaml')): raise HTTPException(422,'URL source must return text content')
+    text=response.text[:100000].strip()
+    if not text: raise HTTPException(422,'URL source returned no text')
+    title=data.url.split('/')[2] + ' knowledge source'
+    row=await _open_candidate(db,embedder,title=title,content=text,source=f'url:{data.url}',workstream_id=data.workstream_id,author=data.author.strip())
+    return {'candidate_count':1,'candidate':entry_to_response(row),'status':'open','approval_required':True}

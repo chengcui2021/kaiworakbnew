@@ -18,12 +18,12 @@ import re
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.persistence.constants import SEARCH_MAX_LIMIT
 from app.persistence.embeddings import EmbeddingService
-from app.persistence.models import Entry, EntryStatus
+from app.persistence.models import Entry, EntryStatus, KnowledgeUsageDB
 from app.persistence.search_service import semantic_search
 from app.schemas.context_assembly import (
     KnowledgeResolution,
@@ -34,7 +34,7 @@ from app.schemas.context_assembly import (
 from app.services.knowledge_context import sha256_digest
 from app.services.tenant_scope import entry_is_authorized, entry_scope_predicate
 
-RESOLVER_VERSION = "2"
+RESOLVER_VERSION = "3"
 _LEXICAL_ENTRY_LIMIT = 100
 _WORKSTREAM_SELECTION_LIMIT = 5
 _SHARED_SELECTION_LIMIT = 3
@@ -239,6 +239,11 @@ async def resolve_knowledge(
         ) from exc
 
     tokens = _query_tokens(query)
+    usage_stats: dict[str, tuple[int,int,float]] = {}
+    if scope_entries:
+        ids=[UUID(x) for x in scope_entries.keys()]
+        ustmt=select(KnowledgeUsageDB.entry_id,func.count(KnowledgeUsageDB.id),func.sum(case((KnowledgeUsageDB.outcome=='success',1),else_=0)),func.avg(KnowledgeUsageDB.relevance)).where(KnowledgeUsageDB.entry_id.in_(ids),KnowledgeUsageDB.tenant_id==tenant_id).group_by(KnowledgeUsageDB.entry_id)
+        for eid,total,wins,rel in (await db.execute(ustmt)).all(): usage_stats[str(eid)]=(int(total or 0),int(wins or 0),float(rel or 50.0))
     ranked: list[tuple[float, str, ResolvedKnowledgeItem]] = []
     for entry_id, entry in scope_entries.items():
         semantic = semantic_by_id.get(entry_id)
@@ -250,7 +255,9 @@ async def resolve_knowledge(
         if semantic is not None and semantic < min_similarity and lexical <= 0.0:
             continue
         semantic_component = max(0.0, semantic if semantic is not None else 0.0)
-        score = round((semantic_component * 0.85) + (lexical * 0.15), 8)
+        usage_total, usage_wins, usage_rel = usage_stats.get(entry_id,(0,0,50.0))
+        outcome_score = ((usage_wins / usage_total) * (usage_rel / 100.0)) if usage_total else 0.5
+        score = round((semantic_component * 0.75) + (lexical * 0.15) + (outcome_score * 0.10), 8)
         scope = scope_names.get(entry_id, "shared" if entry.workstream_id is None else "workstream")
         owner_scope = str(getattr(entry, "owner_scope", "global") or "global")
         reason_bits = [
@@ -262,6 +269,8 @@ async def resolve_knowledge(
             reason_bits.append(f"semantic similarity {semantic:.3f}")
         if lexical > 0:
             reason_bits.append(f"lexical relevance {lexical:.3f}")
+        if usage_total:
+            reason_bits.append(f"historical validated outcome {usage_wins}/{usage_total}")
         item = ResolvedKnowledgeItem(
             entry_id=entry_id,
             title=entry.title,

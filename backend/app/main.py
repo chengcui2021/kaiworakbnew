@@ -16,7 +16,7 @@ from app.routes_persistent import entries as persistent_entries, semantic_search
 
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="Kaiwora Knowledge Intelligence", version="1.8.0")
+app = FastAPI(title="Kaiwora Knowledge Intelligence", version="1.9.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -53,7 +53,7 @@ app.include_router(kaiwora_node_profile.router)
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "service": "kaiwora-kb", "version": "1.8.0"}
+    return {"status": "ok", "service": "kaiwora-kb", "version": "1.9.0"}
 
 
 @app.get("/")

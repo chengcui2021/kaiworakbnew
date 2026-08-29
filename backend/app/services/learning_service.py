@@ -24,41 +24,23 @@ def fingerprint(tenant_id: str, repository_id: str, knowledge_type: str, observa
 async def create_candidate(db: AsyncSession, payload: dict):
     scope = _scope(payload)
     repository_id = str(payload.get("repository_id", "") or "")
-    fp = fingerprint(
-        payload["tenant_id"], repository_id,
-        payload.get("knowledge_type", "procedural"), payload["observation"], scope,
-    )
-    evidence = payload.get("evidence") or {}
+    fp = fingerprint(payload["tenant_id"], repository_id, payload.get("knowledge_type", "procedural"), payload["observation"], scope)
+    evidence = dict(payload.get("evidence") or {})
     confidence = max(0, min(100, round(float(payload.get("confidence", 0)) * 100)))
-    successful = bool(evidence.get("run_success")) and bool(
-        (evidence.get("final_validation") or {}).get("ok", evidence.get("run_success"))
-    )
-    q = select(func.count(LearningEntryDB.id)).where(
-        LearningEntryDB.tenant_id == payload["tenant_id"],
-        LearningEntryDB.fingerprint == fp,
-        LearningEntryDB.status.in_([CANDIDATE, VALIDATED]),
-    )
+    q = select(func.count(LearningEntryDB.id)).where(LearningEntryDB.tenant_id == payload["tenant_id"], LearningEntryDB.fingerprint == fp)
     prior = int((await db.execute(q)).scalar() or 0)
-    # Conservative auto-promotion: one successful run is never enough.
-    # Repeated successful evidence with high confidence may become reusable.
-    status = VALIDATED if successful and confidence >= 80 and prior >= 1 else CANDIDATE
+    evidence["occurrence_count"] = prior + 1
+    evidence["successful_run_count"] = int(bool(evidence.get("run_success")))
+    evidence["failure_run_count"] = int(not bool(evidence.get("run_success")))
+    evidence["reusability_score"] = min(100, confidence + min(prior * 5, 15))
+    evidence["privacy_scope"] = scope
     row = LearningEntryDB(
-        tenant_id=payload["tenant_id"],
-        workspace_id=payload.get("workspace_id", "default"),
-        repository_id=repository_id,
-        knowledge_type=payload.get("knowledge_type", "procedural"),
-        scope=scope,
-        observation=payload["observation"], fingerprint=fp, status=status,
-        confidence=confidence, source_run_id=payload.get("project_run_id", ""),
-        source_commit=payload.get("source_commit", ""), evidence=evidence,
-        provenance=payload.get("provenance") or {},
+        tenant_id=payload["tenant_id"], workspace_id=payload.get("workspace_id", "default"), repository_id=repository_id,
+        knowledge_type=payload.get("knowledge_type", "procedural"), scope=scope, observation=payload["observation"], fingerprint=fp,
+        status=CANDIDATE, confidence=confidence, source_run_id=payload.get("project_run_id", ""), source_commit=payload.get("source_commit", ""),
+        evidence=evidence, provenance=payload.get("provenance") or {},
     )
-    if status == VALIDATED:
-        row.validated_at = datetime.now(UTC)
-    db.add(row)
-    await db.commit()
-    await db.refresh(row)
-    return row
+    db.add(row); await db.commit(); await db.refresh(row); return row
 
 
 async def reusable(db: AsyncSession, tenant_id: str, workspace_id: str, repository_id: str):

@@ -483,3 +483,19 @@ class GlobalLearningCandidateDB(Base):
     approved_entry_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("entries.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+class KnowledgeUsageDB(Base):
+    """Outcome feedback for approved entries used by Context Resolution."""
+    __tablename__ = 'knowledge_usage'
+    __table_args__ = (Index('ix_knowledge_usage_entry', 'entry_id'), Index('ix_knowledge_usage_scope','tenant_id','workspace_id','repository_id'))
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, server_default=text('gen_random_uuid()'))
+    entry_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey('entries.id', ondelete='CASCADE'), nullable=False)
+    tenant_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    workspace_id: Mapped[str] = mapped_column(String(255), nullable=False, server_default=text("'default'"))
+    repository_id: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
+    run_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    task_type: Mapped[str] = mapped_column(String(64), nullable=False, server_default=text("'engineering'"))
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    repair_count: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text('0'))
+    relevance: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text('50'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
