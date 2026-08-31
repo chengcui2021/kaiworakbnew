@@ -234,7 +234,7 @@ async def analysis_guidance(payload: AnalysisGuidanceRequest, db: AsyncSession=D
         for item in resolution.selected:
             row=by_id.get(item.entry_id)
             if row is not None and row.status.value == 'resolved':
-                rows.append({'entry_id':str(row.id),'title':row.title,'content':row.content,'source':row.source,'scope':item.scope,'score':item.score,'updated_at':row.updated_at.isoformat() if row.updated_at else None})
+                rows.append({'entry_id':str(row.id),'title':row.title,'content':row.content,'source':row.source,'scope':item.scope,'score':item.score,'updated_at':row.updated_at.isoformat() if row.updated_at else None,'knowledge_kind':str(getattr(row,'knowledge_kind','documentation') or 'documentation'),'owner_scope':str(getattr(row,'owner_scope','global') or 'global'),'applies_to':getattr(row,'applies_to',None),'priority':int(getattr(row,'priority',100) or 100)})
     import hashlib, json
     digest='sha256:'+hashlib.sha256(json.dumps(rows,sort_keys=True,separators=(',',':'),default=str).encode()).hexdigest()
     return {'selected':[x.model_dump() for x in resolution.selected],'snapshots':rows,'guidance_hash':digest,'resolution_hash':resolution.resolution_hash}

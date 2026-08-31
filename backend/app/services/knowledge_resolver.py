@@ -86,6 +86,29 @@ def build_resolution_query(
     return "\n".join(parts)
 
 
+
+def _is_bootstrap_repository(repository: RepositoryAnalysisInput) -> bool:
+    evidence = " ".join([*(repository.architecture_context or []), *(repository.analysis_evidence or [])]).casefold()
+    if "bootstrap_project" in evidence or "bootstrap project" in evidence or "greenfield" in evidence:
+        return True
+    executable_exts = {".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".kt", ".go", ".rs", ".cs", ".rb", ".php", ".swift", ".scala", ".vue", ".svelte"}
+    for item in repository.relevant_files or []:
+        path = (item.path or "").casefold()
+        if any(path.endswith(ext) for ext in executable_exts):
+            return False
+        if path.endswith(("package.json", "pyproject.toml", "pom.xml", "build.gradle", "go.mod", "cargo.toml")):
+            return False
+    return True
+
+
+def _governed_policy_applies(entry: Entry, repository: RepositoryAnalysisInput) -> bool:
+    if str(getattr(entry, "knowledge_kind", "") or "").casefold() != "policy":
+        return False
+    applies_to = str(getattr(entry, "applies_to", "") or "").strip().casefold()
+    if applies_to in {"bootstrap_project", "greenfield", "greenfield_application"}:
+        return _is_bootstrap_repository(repository)
+    return False
+
 def _query_tokens(query: str) -> list[str]:
     tokens: list[str] = []
     seen: set[str] = set()
@@ -248,16 +271,21 @@ async def resolve_knowledge(
     for entry_id, entry in scope_entries.items():
         semantic = semantic_by_id.get(entry_id)
         lexical = _lexical_score(entry, tokens)
-        # Keep strong lexical matches even if vector retrieval did not return
-        # the item; otherwise require the configured semantic floor.
-        if semantic is None and lexical <= 0.0:
-            continue
-        if semantic is not None and semantic < min_similarity and lexical <= 0.0:
-            continue
+        mandatory_policy = _governed_policy_applies(entry, repository)
+        # Explicit approved bootstrap policies are deterministic governance, not
+        # merely semantic suggestions. They remain eligible even if the ticket
+        # wording does not repeat the policy title. Other knowledge still obeys
+        # normal semantic/lexical relevance.
+        if not mandatory_policy:
+            if semantic is None and lexical <= 0.0:
+                continue
+            if semantic is not None and semantic < min_similarity and lexical <= 0.0:
+                continue
         semantic_component = max(0.0, semantic if semantic is not None else 0.0)
         usage_total, usage_wins, usage_rel = usage_stats.get(entry_id,(0,0,50.0))
         outcome_score = ((usage_wins / usage_total) * (usage_rel / 100.0)) if usage_total else 0.5
-        score = round((semantic_component * 0.75) + (lexical * 0.15) + (outcome_score * 0.10), 8)
+        policy_boost = 1.0 + (min(max(int(getattr(entry, "priority", 100) or 100), 0), 1000) / 10000.0) if mandatory_policy else 0.0
+        score = round(policy_boost + (semantic_component * 0.75) + (lexical * 0.15) + (outcome_score * 0.10), 8)
         scope = scope_names.get(entry_id, "shared" if entry.workstream_id is None else "workstream")
         owner_scope = str(getattr(entry, "owner_scope", "global") or "global")
         reason_bits = [
@@ -265,6 +293,8 @@ async def resolve_knowledge(
             f"{scope} knowledge scope",
             f"{owner_scope} owner scope",
         ]
+        if mandatory_policy:
+            reason_bits.append("mandatory approved bootstrap policy")
         if semantic is not None:
             reason_bits.append(f"semantic similarity {semantic:.3f}")
         if lexical > 0:
@@ -281,6 +311,10 @@ async def resolve_knowledge(
             lexical_score=round(lexical, 8),
             score=score,
             reason="; ".join(reason_bits),
+            knowledge_kind=str(getattr(entry, "knowledge_kind", "documentation") or "documentation"),
+            owner_scope=owner_scope,
+            applies_to=getattr(entry, "applies_to", None),
+            priority=int(getattr(entry, "priority", 100) or 100),
         )
         ranked.append((score, entry_id, item))
 

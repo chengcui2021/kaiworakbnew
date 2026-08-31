@@ -261,11 +261,7 @@ class KnowledgeProvenance(BaseModel):
 
 
 class KnowledgeSnapshot(BaseModel):
-    """Immutable content snapshot for one approved KB entry.
-
-    Governed execution consumes this snapshot directly so it never has to
-    re-fetch mutable KB knowledge after a Context Assembly Lock is created.
-    """
+    """Immutable content snapshot for one approved KB entry."""
 
     entry_id: str
     title: str
@@ -274,6 +270,10 @@ class KnowledgeSnapshot(BaseModel):
     version: str | None = None
     updated_at: str | None = None
     status: str
+    knowledge_kind: str = "documentation"
+    owner_scope: str = "global"
+    applies_to: str | None = None
+    priority: int = 100
 
 
 class ResolvedKnowledgeItem(BaseModel):
@@ -288,6 +288,10 @@ class ResolvedKnowledgeItem(BaseModel):
     lexical_score: float = 0.0
     score: float
     reason: str
+    knowledge_kind: str = "documentation"
+    owner_scope: str = "global"
+    applies_to: str | None = None
+    priority: int = 100
 
 
 class KnowledgeResolution(BaseModel):

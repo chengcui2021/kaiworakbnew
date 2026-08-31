@@ -212,6 +212,9 @@ class Entry(Base):
     tenant_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     workspace_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     repository_id: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    knowledge_kind: Mapped[str] = mapped_column(String(64), nullable=False, server_default=text("'documentation'"))
+    applies_to: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("'100'"))
 
     status: Mapped[EntryStatus] = mapped_column(
         SQLEnum(

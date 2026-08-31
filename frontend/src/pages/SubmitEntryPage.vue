@@ -11,7 +11,7 @@ import { useTemplateService } from '@/services/useTemplateService'
 import { useJiraLinkService } from '@/services/useJiraLinkService'
 import { useTagService } from '@/services/useTagService'
 import { useWorkstream } from '@/composables/useWorkstream'
-import type { Tag, Template } from '@/types/entry'
+import type { Tag, Template, KnowledgeKind, KnowledgeOwnerScope, EntryType } from '@/types/entry'
 import { readMarkdownFile, isPdfFilename, validateTransformFile } from '@/utils/markdownUpload'
 import { useUnsavedChangesGuard } from '@/composables/useUnsavedChangesGuard'
 import { useConfirm } from '@/composables/useConfirm'
@@ -43,6 +43,33 @@ const { confirm } = useConfirm()
 const { activeWorkstream } = useWorkstream()
 
 const dbTemplates = ref<Template[]>([])
+const knowledgeKind = ref<KnowledgeKind>('documentation')
+const ownerScope = ref<KnowledgeOwnerScope>('global')
+const appliesTo = ref('')
+const priority = ref(100)
+const tenantId = ref('')
+const workspaceId = ref('')
+const repositoryId = ref('')
+
+const knowledgeKindOptions: Array<{ value: KnowledgeKind; label: string }> = [
+  { value: 'policy', label: 'Policy' },
+  { value: 'engineering_rule', label: 'Engineering Rule' },
+  { value: 'architecture_pattern', label: 'Architecture Pattern' },
+  { value: 'testing_standard', label: 'Testing Standard' },
+  { value: 'validation_rule', label: 'Validation Rule' },
+  { value: 'task_playbook', label: 'Task Playbook' },
+  { value: 'failure_pattern', label: 'Failure Pattern' },
+  { value: 'repair_playbook', label: 'Repair Playbook' },
+  { value: 'context_selection', label: 'Context Selection Knowledge' },
+  { value: 'tool_knowledge', label: 'Tool Knowledge' },
+  { value: 'documentation', label: 'Documentation' },
+]
+
+function legacyEntryType(kind: KnowledgeKind): EntryType {
+  if (['policy', 'engineering_rule', 'testing_standard', 'validation_rule'].includes(kind)) return 'constraint'
+  if (kind === 'architecture_pattern') return 'example'
+  return 'documentation'
+}
 
 // Associations — collected locally, linked after entry creation
 const jiraKeys = ref<string[]>([])
@@ -237,15 +264,34 @@ async function loadCatalogTags() {
 }
 
 const onSubmit = handleSubmit(async (formValues) => {
+  if (ownerScope.value !== 'global' && !tenantId.value.trim()) {
+    toast.error('Tenant ID is required for non-global knowledge')
+    return
+  }
+  if (['workspace', 'repository'].includes(ownerScope.value) && !workspaceId.value.trim()) {
+    toast.error('Workspace ID is required for workspace/repository knowledge')
+    return
+  }
+  if (ownerScope.value === 'repository' && !repositoryId.value.trim()) {
+    toast.error('Repository ID is required for repository knowledge')
+    return
+  }
   submitting.value = true
   try {
     const entry = await createEntry({
-      type: 'documentation',
-      component: 'api',
+      type: legacyEntryType(knowledgeKind.value),
+      component: 'admin',
       title: formValues.title,
       content: formValues.content,
       author: formValues.author,
-      workstream_id: activeWorkstream.value?.id ?? null,
+      workstream_id: knowledgeKind.value === 'documentation' ? (activeWorkstream.value?.id ?? null) : null,
+      owner_scope: ownerScope.value,
+      tenant_id: ownerScope.value === 'global' ? null : (tenantId.value.trim() || null),
+      workspace_id: ['workspace', 'repository'].includes(ownerScope.value) ? (workspaceId.value.trim() || null) : null,
+      repository_id: ownerScope.value === 'repository' ? (repositoryId.value.trim() || null) : null,
+      knowledge_kind: knowledgeKind.value,
+      applies_to: appliesTo.value.trim() || null,
+      priority: Number(priority.value) || 100,
     })
 
     // Associate Jira links and tags (best-effort — entry already exists)
@@ -319,6 +365,55 @@ onMounted(() => {
                 <FormMessage />
               </FormItem>
             </FormField>
+            <div class="grid gap-4 rounded-md border p-4">
+              <div>
+                <div class="text-sm font-semibold">Governance metadata</div>
+                <p class="text-xs text-muted-foreground">Stored as first-class metadata and frozen into resolved knowledge / Context Lock.</p>
+              </div>
+              <div class="grid gap-4 md:grid-cols-2">
+                <div class="grid gap-2">
+                  <Label>Knowledge type</Label>
+                  <Select v-model="knowledgeKind">
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem v-for="item in knowledgeKindOptions" :key="item.value" :value="item.value">{{ item.label }}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div class="grid gap-2">
+                  <Label>Scope</Label>
+                  <Select v-model="ownerScope">
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="global">Global</SelectItem>
+                      <SelectItem value="tenant">Tenant</SelectItem>
+                      <SelectItem value="workspace">Workspace</SelectItem>
+                      <SelectItem value="repository">Repository</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div class="grid gap-2">
+                  <Label>Applies to</Label>
+                  <Select v-model="appliesTo">
+                    <SelectTrigger><SelectValue placeholder="General / semantic relevance" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bootstrap_project">Bootstrap / greenfield project</SelectItem>
+                      <SelectItem value="web_application">Web application</SelectItem>
+                      <SelectItem value="all">All engineering work</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div class="grid gap-2">
+                  <Label>Priority</Label>
+                  <Input v-model.number="priority" type="number" min="0" max="1000" />
+                </div>
+              </div>
+              <div v-if="ownerScope !== 'global'" class="grid gap-4 md:grid-cols-2">
+                <div class="grid gap-2"><Label>Tenant ID</Label><Input v-model="tenantId" placeholder="Tenant ID" /></div>
+                <div v-if="ownerScope === 'workspace' || ownerScope === 'repository'" class="grid gap-2"><Label>Workspace ID</Label><Input v-model="workspaceId" placeholder="Workspace ID" /></div>
+                <div v-if="ownerScope === 'repository'" class="grid gap-2 md:col-span-2"><Label>Repository ID</Label><Input v-model="repositoryId" placeholder="Repository ID" /></div>
+              </div>
+            </div>
             <div class="grid gap-2">
               <Label for="document-template">Start from a template</Label>
               <div class="flex flex-wrap items-center gap-3">

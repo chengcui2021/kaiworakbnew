@@ -4,6 +4,13 @@
 
 export type EntryType = 'documentation' | 'requirement' | 'constraint' | 'example' | 'other'
 
+export type KnowledgeKind =
+  | 'policy' | 'engineering_rule' | 'architecture_pattern' | 'testing_standard'
+  | 'validation_rule' | 'task_playbook' | 'failure_pattern' | 'repair_playbook'
+  | 'context_selection' | 'tool_knowledge' | 'documentation'
+
+export type KnowledgeOwnerScope = 'global' | 'tenant' | 'workspace' | 'repository'
+
 export type ComponentName =
   'ingestion' | 'storage' | 'retrieval' | 'embedding' | 'api' | 'admin' | 'unknown'
 
@@ -41,6 +48,13 @@ export type Entry = {
   created_at: string
   updated_at: string
   workstream_id?: string | null
+  owner_scope?: KnowledgeOwnerScope
+  tenant_id?: string | null
+  workspace_id?: string | null
+  repository_id?: string | null
+  knowledge_kind?: KnowledgeKind
+  applies_to?: string | null
+  priority?: number
   tags: Tag[]
 }
 
@@ -90,6 +104,13 @@ export type EntryCreatePayload = {
   source?: string
   author: string
   workstream_id?: string | null
+  owner_scope?: KnowledgeOwnerScope
+  tenant_id?: string | null
+  workspace_id?: string | null
+  repository_id?: string | null
+  knowledge_kind?: KnowledgeKind
+  applies_to?: string | null
+  priority?: number
 }
 
 export type EntryUpdatePayload = {
@@ -101,6 +122,13 @@ export type EntryUpdatePayload = {
   author: string
   status: EntryStatus
   workstream_id?: string | null
+  owner_scope?: KnowledgeOwnerScope
+  tenant_id?: string | null
+  workspace_id?: string | null
+  repository_id?: string | null
+  knowledge_kind?: KnowledgeKind
+  applies_to?: string | null
+  priority?: number
 }
 
 export type JiraChildIssue = {

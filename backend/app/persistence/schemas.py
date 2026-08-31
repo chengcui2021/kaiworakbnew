@@ -71,6 +71,13 @@ class EntryCreate(BaseModel):
     tenant_id: str | None = Field(default=None, max_length=255)
     workspace_id: str | None = Field(default=None, max_length=255)
     repository_id: str | None = Field(default=None, max_length=2000)
+    knowledge_kind: Literal[
+        "policy", "engineering_rule", "architecture_pattern", "testing_standard",
+        "validation_rule", "task_playbook", "failure_pattern", "repair_playbook",
+        "context_selection", "tool_knowledge", "documentation"
+    ] = "documentation"
+    applies_to: str | None = Field(default=None, max_length=128)
+    priority: int = Field(default=100, ge=0, le=1000)
 
     workstream_id: UUID | None = Field(default=None, description="Optional workstream assignment")
 
@@ -112,6 +119,9 @@ class EntryResponse(BaseModel):
     tenant_id: str | None = None
     workspace_id: str | None = None
     repository_id: str | None = None
+    knowledge_kind: str = "documentation"
+    applies_to: str | None = None
+    priority: int = 100
     created_at: datetime
     updated_at: datetime
     workstream_id: UUID | None = None
@@ -151,6 +161,13 @@ class EntryUpdate(BaseModel):
     tenant_id: str | None = Field(default=None, max_length=255)
     workspace_id: str | None = Field(default=None, max_length=255)
     repository_id: str | None = Field(default=None, max_length=2000)
+    knowledge_kind: Literal[
+        "policy", "engineering_rule", "architecture_pattern", "testing_standard",
+        "validation_rule", "task_playbook", "failure_pattern", "repair_playbook",
+        "context_selection", "tool_knowledge", "documentation"
+    ] = "documentation"
+    applies_to: str | None = Field(default=None, max_length=128)
+    priority: int = Field(default=100, ge=0, le=1000)
 
     workstream_id: UUID | None = Field(default=None, description="Optional workstream reassignment")
 

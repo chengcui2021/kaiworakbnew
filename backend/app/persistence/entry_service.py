@@ -49,6 +49,9 @@ async def update_entry(
     entry.tenant_id = data.tenant_id
     entry.workspace_id = data.workspace_id
     entry.repository_id = data.repository_id
+    entry.knowledge_kind = data.knowledge_kind
+    entry.applies_to = data.applies_to
+    entry.priority = data.priority
 
     if new_embedding is not None:
         entry.embedding = new_embedding

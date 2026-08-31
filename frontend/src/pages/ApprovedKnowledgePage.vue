@@ -12,7 +12,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 
-type ApprovedItem = KbDocument & { source: 'workspace' | 'entry' }
+type ApprovedItem = KbDocument & { source: 'workspace' | 'entry'; knowledge_kind?: string; owner_scope?: string; applies_to?: string | null; priority?: number }
 
 const { activeWorkspace } = useWorkspace()
 const { listDocuments } = useDocumentService()
@@ -45,6 +45,10 @@ async function load() {
       approval_status: 'approved',
       approved_at: entry.updated_at,
       source: 'entry',
+      knowledge_kind: entry.knowledge_kind,
+      owner_scope: entry.owner_scope,
+      applies_to: entry.applies_to,
+      priority: entry.priority,
     }))
     entries.value = [
       ...workspaceApproved.map((doc): ApprovedItem => ({ ...doc, source: 'workspace' })),
@@ -119,6 +123,9 @@ watch(() => activeWorkspace.value?.id, load)
                     <Badge variant="outline">{{
                       doc.source === 'entry' ? 'KB entry' : 'Workspace doc'
                     }}</Badge>
+                    <Badge v-if="doc.knowledge_kind" variant="secondary">{{ doc.knowledge_kind }}</Badge>
+                    <Badge v-if="doc.owner_scope" variant="outline">{{ doc.owner_scope }}</Badge>
+                    <Badge v-if="doc.applies_to" variant="outline">{{ doc.applies_to }}</Badge>
                   </div>
                   <ApprovalBadge status="approved" />
                 </div>

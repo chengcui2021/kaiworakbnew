@@ -225,6 +225,9 @@ async def create_entry(
         tenant_id=data.tenant_id,
         workspace_id=data.workspace_id,
         repository_id=data.repository_id,
+        knowledge_kind=data.knowledge_kind,
+        applies_to=data.applies_to,
+        priority=data.priority,
     )
     db.add(entry)
     try:
