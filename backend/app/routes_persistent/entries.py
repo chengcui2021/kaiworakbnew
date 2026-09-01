@@ -102,9 +102,10 @@ async def put_entry(
     if existing_entry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found")
 
-    # Only re-generate embedding if content changed
+    # Generate a fresh embedding when content changes, or recover entries
+    # whose embedding could not be generated during an earlier write.
     new_embedding: list[float] | None = None
-    if data.content != existing_entry.content:
+    if data.content != existing_entry.content or existing_entry.embedding is None:
         try:
             new_embedding = await embedder.embed_text(data.content)
         except ValueError as e:

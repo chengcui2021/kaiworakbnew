@@ -344,6 +344,10 @@ def build_knowledge_context(
             version=e.updated_at.isoformat() if e.updated_at else None,
             updated_at=e.updated_at.isoformat() if e.updated_at else None,
             status=e.status.value,
+            knowledge_kind=str(getattr(e, "knowledge_kind", "documentation") or "documentation"),
+            owner_scope=str(getattr(e, "owner_scope", "global") or "global"),
+            applies_to=getattr(e, "applies_to", None),
+            priority=int(getattr(e, "priority", 100) or 100),
         )
         for e in ordered
     ]

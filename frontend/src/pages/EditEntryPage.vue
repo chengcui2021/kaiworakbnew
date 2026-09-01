@@ -10,13 +10,28 @@ import { PATCH_STATUSES, PUBLISH_STATUSES } from '@/constants/entryOptions'
 import { useConfirm } from '@/composables/useConfirm'
 import { useUnsavedChangesGuard } from '@/composables/useUnsavedChangesGuard'
 import { editEntrySchema, type EditEntryFormValues } from '@/schemas/entrySchema'
-import type { ComponentName, EntryStatus, EntryType, Tag } from '@/types/entry'
+import type {
+  ComponentName,
+  EntryStatus,
+  EntryType,
+  KnowledgeKind,
+  KnowledgeOwnerScope,
+  Tag,
+} from '@/types/entry'
 
 // Original classification values — preserved from the loaded entry, not user-editable
 const origClassification = ref({
   type: 'documentation' as string,
   component: 'api' as string,
   source: '',
+  workstream_id: null as string | null,
+  owner_scope: 'global' as KnowledgeOwnerScope,
+  tenant_id: null as string | null,
+  workspace_id: null as string | null,
+  repository_id: null as string | null,
+  knowledge_kind: 'documentation' as KnowledgeKind,
+  applies_to: null as string | null,
+  priority: 100,
 })
 import JiraLinksPanel from '@/components/JiraLinksPanel.vue'
 import MarkdownContent from '@/components/MarkdownContent.vue'
@@ -85,6 +100,14 @@ async function loadEntry() {
       type: entry.type,
       component: entry.component,
       source: entry.source || '',
+      workstream_id: entry.workstream_id ?? null,
+      owner_scope: entry.owner_scope ?? 'global',
+      tenant_id: entry.tenant_id ?? null,
+      workspace_id: entry.workspace_id ?? null,
+      repository_id: entry.repository_id ?? null,
+      knowledge_kind: entry.knowledge_kind ?? 'documentation',
+      applies_to: entry.applies_to ?? null,
+      priority: entry.priority ?? 100,
     }
     resetForm({
       values: {
@@ -116,6 +139,14 @@ const saveChanges = handleSubmit(async (formValues) => {
       source: origClassification.value.source?.trim() || null,
       author: formValues.author,
       status: formValues.status as EntryStatus,
+      workstream_id: origClassification.value.workstream_id,
+      owner_scope: origClassification.value.owner_scope,
+      tenant_id: origClassification.value.tenant_id,
+      workspace_id: origClassification.value.workspace_id,
+      repository_id: origClassification.value.repository_id,
+      knowledge_kind: origClassification.value.knowledge_kind,
+      applies_to: origClassification.value.applies_to,
+      priority: origClassification.value.priority,
     })
     resetForm({ values: formValues })
     toast.success('Changes saved.')
