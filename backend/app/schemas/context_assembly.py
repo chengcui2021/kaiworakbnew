@@ -110,7 +110,7 @@ class GovernanceRuleInput(BaseModel):
 
 
 class RequirementAnalysisInput(BaseModel):
-    """Requirement analysis produced by an external intelligence layer such as LingYu.
+    """Requirement analysis produced by an external intelligence layer such as Kaiwora.
 
     KB does not reinterpret these fields; it validates, canonicalises and freezes
     them as part of the governed contract.
@@ -130,7 +130,7 @@ class RequirementAnalysisInput(BaseModel):
 
 
 class RepositoryAnalysisInput(BaseModel):
-    """Repository understanding supplied by LingYu at an immutable repository SHA."""
+    """Repository understanding supplied by Kaiwora at an immutable repository SHA."""
 
     model_config = ConfigDict(extra="forbid")
     name: str = Field(..., min_length=1, max_length=300)
@@ -160,10 +160,10 @@ class KnowledgeResolutionRequest(BaseModel):
 
 
 class GovernedContextFromAnalysisRequest(BaseModel):
-    """Analysis-aware governed context input used by LingYu -> KB handoff."""
+    """Analysis-aware governed context input used by Kaiwora -> KB handoff."""
 
     model_config = ConfigDict(extra="forbid")
-    analysis_source: str = Field(default="lingyu", min_length=1, max_length=100)
+    analysis_source: str = Field(default="kaiwora", min_length=1, max_length=100)
     analysis_id: str | None = Field(default=None, max_length=200)
     analysis_hash: str | None = Field(default=None, max_length=200)
     tenant_id: str = Field(default="default", min_length=1, max_length=255)

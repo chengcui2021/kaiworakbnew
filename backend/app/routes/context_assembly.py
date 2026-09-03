@@ -112,7 +112,7 @@ async def _assemble(payload: GovernedContextRequest, db: AsyncSession) -> Govern
 async def _assemble_from_analysis(
     payload: GovernedContextFromAnalysisRequest, db: AsyncSession
 ) -> GovernedContextAssembly:
-    """Govern LingYu analysis without asking KB to re-run requirement/repository intelligence."""
+    """Govern Kaiwora analysis without asking KB to re-run requirement/repository intelligence."""
     try:
         requirement = build_requirement_context_from_analysis(
             payload.requirement_analysis,

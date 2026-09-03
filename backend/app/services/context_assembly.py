@@ -133,7 +133,7 @@ def _clean_list(values: Sequence[str]) -> list[str]:
 def build_requirement_context_from_analysis(
     payload: RequirementAnalysisInput,
     *,
-    analysis_source: str = "lingyu",
+    analysis_source: str = "kaiwora",
     analysis_id: str | None = None,
     analysis_hash: str | None = None,
     tenant_id: str = "default",
@@ -157,7 +157,7 @@ def build_requirement_context_from_analysis(
         "assumptions": _clean_list(payload.assumptions),
         "ambiguities": _clean_list(payload.ambiguities),
         "dependencies": _clean_list(payload.dependencies),
-        "analysis_source": (analysis_source or "lingyu").strip(),
+        "analysis_source": (analysis_source or "kaiwora").strip(),
         "analysis_id": (analysis_id or "").strip() or None,
         "analysis_hash": (analysis_hash or "").strip() or None,
         "tenant_id": str(tenant_id or "default"),
@@ -172,11 +172,11 @@ def build_requirement_context_from_analysis(
 def build_repository_context_from_analysis(
     payload: RepositoryAnalysisInput,
     *,
-    analysis_source: str = "lingyu",
+    analysis_source: str = "kaiwora",
     analysis_id: str | None = None,
     analysis_hash: str | None = None,
 ) -> RepositoryAnalysisContext:
-    """Freeze LingYu repository understanding at the analysed commit SHA."""
+    """Freeze Kaiwora repository understanding at the analysed commit SHA."""
     name = payload.name.strip()
     commit_sha = payload.commit_sha.strip().lower()
     if not name:
@@ -202,7 +202,7 @@ def build_repository_context_from_analysis(
             access=item.access,
         ))
     files.sort(key=lambda x: x.path)
-    source = (analysis_source or "lingyu").strip()
+    source = (analysis_source or "kaiwora").strip()
     data = {
         "name": name,
         "url": (payload.url or "").strip() or None,
