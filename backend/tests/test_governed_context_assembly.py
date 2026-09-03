@@ -3024,18 +3024,18 @@ def test_mdsu325_unknown_persisted_lock_returns_404(client):
     assert response.status_code == 404
 
 # ---------------------------------------------------------------------------
-# LingYu analysis -> KB governed lock handoff
+# Kaiwora analysis -> KB governed lock handoff
 # ---------------------------------------------------------------------------
 
-def lingyu_analysis_request(**overrides):
+def kaiwora_analysis_request(**overrides):
     payload = {
-        "analysis_source": "lingyu",
+        "analysis_source": "kaiwora",
         "analysis_id": "analysis-mdsu326",
         "analysis_hash": "sha256:" + "a" * 64,
         "requirement_analysis": {
             "request_id": "MDSU-326",
             "title": "John runtime integration",
-            "description": "Integrate governed John runtime controls into LingYu.",
+            "description": "Integrate governed John runtime controls into Kaiwora.",
             "acceptance_criteria": ["Runtime controls are integrated and verifiable."],
             "clarified_requirement": "Add John runtime controls without bypassing Project Run governance.",
             "constraints": ["Preserve existing Project Run behaviour."],
@@ -3065,15 +3065,15 @@ def lingyu_analysis_request(**overrides):
     return payload
 
 
-def test_lingyu_analysis_can_create_reusable_governed_lock(client):
-    payload = lingyu_analysis_request()
+def test_kaiwora_analysis_can_create_reusable_governed_lock(client):
+    payload = kaiwora_analysis_request()
     created = client.post("/api/governed-context/lock-from-analysis", json=payload)
     assert created.status_code == 201, created.text
     lock = created.json()
     retrieved = client.get(f"/api/governed-context/locks/{lock['lock_id']}")
     assert retrieved.status_code == 200
     body = retrieved.json()
-    assert body["governed_context"]["requirement_context"]["analysis_source"] == "lingyu"
+    assert body["governed_context"]["requirement_context"]["analysis_source"] == "kaiwora"
     assert body["governed_context"]["requirement_context"]["clarified_requirement"].startswith("Add John")
     assert body["governed_context"]["repository_context"]["analysis_mode"] == "external_analysis"
     assert body["governed_context"]["repository_context"]["relevant_files"] == [
@@ -3082,8 +3082,8 @@ def test_lingyu_analysis_can_create_reusable_governed_lock(client):
     ]
 
 
-def test_lingyu_analysis_lock_is_deterministic_and_reusable(client):
-    payload = lingyu_analysis_request()
+def test_kaiwora_analysis_lock_is_deterministic_and_reusable(client):
+    payload = kaiwora_analysis_request()
     first = client.post("/api/governed-context/lock-from-analysis", json=payload).json()
     second = client.post("/api/governed-context/lock-from-analysis", json=payload).json()
     assert first["lock_id"] == second["lock_id"]
@@ -3093,9 +3093,9 @@ def test_lingyu_analysis_lock_is_deterministic_and_reusable(client):
     assert status_response.json()["stale"] is False
 
 
-def test_material_lingyu_analysis_change_creates_new_lock(client):
-    first_payload = lingyu_analysis_request()
-    second_payload = lingyu_analysis_request()
+def test_material_kaiwora_analysis_change_creates_new_lock(client):
+    first_payload = kaiwora_analysis_request()
+    second_payload = kaiwora_analysis_request()
     second_payload["requirement_analysis"]["constraints"].append("John hooks must fail closed.")
     first = client.post("/api/governed-context/lock-from-analysis", json=first_payload).json()
     second = client.post("/api/governed-context/lock-from-analysis", json=second_payload).json()
@@ -3114,7 +3114,7 @@ def test_legacy_lock_contract_remains_backward_compatible_after_analysis_support
 
 
 def test_repository_file_semantics_are_preserved_in_analysis_lock(client):
-    payload = lingyu_analysis_request()
+    payload = kaiwora_analysis_request()
     payload["repository_analysis"]["relevant_files"] = [
         {
             "path": "price.py",
@@ -3142,7 +3142,7 @@ def test_repository_file_semantics_are_preserved_in_analysis_lock(client):
 
 
 def test_repository_file_access_semantics_change_context_hash(client):
-    writable = lingyu_analysis_request()
+    writable = kaiwora_analysis_request()
     writable["repository_analysis"]["relevant_files"] = [
         {
             "path": "tax_rules.py",
@@ -3152,7 +3152,7 @@ def test_repository_file_access_semantics_change_context_hash(client):
             "access": "read_write",
         }
     ]
-    protected = lingyu_analysis_request()
+    protected = kaiwora_analysis_request()
     protected["repository_analysis"]["relevant_files"] = [
         {
             "path": "tax_rules.py",
@@ -3174,7 +3174,7 @@ def test_repository_file_access_semantics_change_context_hash(client):
 # ---------------------------------------------------------------------------
 
 def test_cloud_lock_requires_exact_scope_when_not_default(client):
-    payload = lingyu_analysis_request(
+    payload = kaiwora_analysis_request(
         tenant_id="tenant-a",
         workspace_id="workspace-a",
         repository_id="repository-a",
@@ -3198,7 +3198,7 @@ def test_cloud_lock_requires_exact_scope_when_not_default(client):
 
 
 def test_cloud_lock_cross_tenant_scope_is_denied(client):
-    payload = lingyu_analysis_request(
+    payload = kaiwora_analysis_request(
         tenant_id="tenant-a",
         workspace_id="workspace-a",
         repository_id="repository-a",
@@ -3217,7 +3217,7 @@ def test_cloud_lock_cross_tenant_scope_is_denied(client):
 
 
 def test_cloud_lock_partial_scope_fails_closed(client):
-    payload = lingyu_analysis_request(
+    payload = kaiwora_analysis_request(
         tenant_id="tenant-a",
         workspace_id="workspace-a",
         repository_id="repository-a",
@@ -3228,3 +3228,14 @@ def test_cloud_lock_partial_scope_fails_closed(client):
         params={"tenant_id": "tenant-a", "workspace_id": "workspace-a"},
     )
     assert response.status_code == 404
+
+
+def test_legacy_lingyu_analysis_source_remains_read_compatible(client):
+    """Legacy persisted/integration payloads remain readable; new defaults are Kaiwora."""
+    payload = kaiwora_analysis_request(analysis_source="lingyu", analysis_id="analysis-legacy-lingyu")
+    created = client.post("/api/governed-context/lock-from-analysis", json=payload)
+    assert created.status_code == 201, created.text
+    lock = created.json()
+    retrieved = client.get(f"/api/governed-context/locks/{lock['lock_id']}")
+    assert retrieved.status_code == 200
+    assert retrieved.json()["governed_context"]["requirement_context"]["analysis_source"] == "lingyu"
