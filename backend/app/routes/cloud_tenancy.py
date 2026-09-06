@@ -29,18 +29,27 @@ def _repo_view(r): return {'id':str(r.id),'tenant_id':str(r.tenant_id),'workspac
 
 @router.post('/tenants',status_code=201,dependencies=[Depends(require_service)])
 async def create_tenant(payload:TenantCreate,db:AsyncSession=Depends(get_db)):
-    if payload.id and (existing:=await db.get(TenantDB,payload.id)): return _tenant_view(existing)
+    if payload.id and (existing:=await db.get(TenantDB,payload.id)):
+        # Idempotent upsert: retries converge the KB projection to Core state.
+        existing.name=payload.name.strip(); existing.slug=payload.slug.strip().lower()
+        await db.commit(); await db.refresh(existing); return _tenant_view(existing)
     row=TenantDB(id=payload.id,name=payload.name.strip(),slug=payload.slug.strip().lower()); db.add(row); await db.commit(); await db.refresh(row); return _tenant_view(row)
 @router.post('/workspaces',status_code=201,dependencies=[Depends(require_service)])
 async def create_workspace(payload:WorkspaceCreate,db:AsyncSession=Depends(get_db)):
     if await db.get(TenantDB,payload.tenant_id) is None: raise HTTPException(404,'Tenant not found')
-    if payload.id and (existing:=await db.get(CloudWorkspaceDB,payload.id)): return _workspace_view(existing)
+    if payload.id and (existing:=await db.get(CloudWorkspaceDB,payload.id)):
+        if existing.tenant_id!=payload.tenant_id: raise HTTPException(409,'Workspace tenant mismatch')
+        existing.name=payload.name.strip(); existing.slug=payload.slug.strip().lower()
+        await db.commit(); await db.refresh(existing); return _workspace_view(existing)
     row=CloudWorkspaceDB(id=payload.id,tenant_id=payload.tenant_id,name=payload.name.strip(),slug=payload.slug.strip().lower()); db.add(row); await db.commit(); await db.refresh(row); return _workspace_view(row)
 @router.post('/repositories',status_code=201,dependencies=[Depends(require_service)])
 async def create_repository(payload:RepositoryCreate,db:AsyncSession=Depends(get_db)):
     workspace=await db.get(CloudWorkspaceDB,payload.workspace_id)
     if workspace is None or workspace.tenant_id!=payload.tenant_id: raise HTTPException(404,'Workspace not found for tenant')
-    if payload.id and (existing:=await db.get(CloudRepositoryDB,payload.id)): return _repo_view(existing)
+    if payload.id and (existing:=await db.get(CloudRepositoryDB,payload.id)):
+        if existing.tenant_id!=payload.tenant_id or existing.workspace_id!=payload.workspace_id: raise HTTPException(409,'Repository scope mismatch')
+        existing.external_id=payload.external_id.strip(); existing.name=payload.name.strip(); existing.url=payload.url.strip(); existing.default_branch=payload.default_branch.strip()
+        await db.commit(); await db.refresh(existing); return _repo_view(existing)
     row=CloudRepositoryDB(id=payload.id,tenant_id=payload.tenant_id,workspace_id=payload.workspace_id,external_id=payload.external_id.strip(),name=payload.name.strip(),url=payload.url.strip(),default_branch=payload.default_branch.strip()); db.add(row); await db.commit(); await db.refresh(row); return _repo_view(row)
 @router.get('/tenants/{tenant_id}/workspaces',dependencies=[Depends(require_service)])
 async def list_workspaces(tenant_id:UUID,db:AsyncSession=Depends(get_db)):
