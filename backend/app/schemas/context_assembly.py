@@ -109,6 +109,56 @@ class GovernanceRuleInput(BaseModel):
 
 
 
+
+
+class RawRequirementInput(BaseModel):
+    """Raw customer work item sent by Agent/Core before KB-owned governed analysis."""
+
+    model_config = ConfigDict(extra="forbid")
+    request_id: str | None = Field(default=None, max_length=200)
+    title: str = Field(..., min_length=1, max_length=500)
+    description: str = Field(..., min_length=1)
+    acceptance_criteria: list[str] = Field(default_factory=list)
+    source: str | None = Field(default=None, max_length=500)
+
+
+class RepositorySnapshotFileInput(BaseModel):
+    """Immutable repository evidence collected by Agent/Core; no interpretation."""
+
+    model_config = ConfigDict(extra="forbid")
+    path: str = Field(..., min_length=1, max_length=1000)
+    language: str | None = Field(default=None, max_length=100)
+    size: int | None = Field(default=None, ge=0)
+    excerpt: str | None = Field(default=None, max_length=4000)
+    role: str | None = Field(default=None, max_length=100)
+
+
+class RepositorySnapshotInput(BaseModel):
+    """Repository facts at a fixed SHA supplied to the KB analysis authority."""
+
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(..., min_length=1, max_length=300)
+    url: str | None = Field(default=None, max_length=1000)
+    branch: str | None = Field(default=None, max_length=300)
+    commit_sha: str = Field(..., min_length=7, max_length=64)
+    files: list[RepositorySnapshotFileInput] = Field(default_factory=list)
+    top_level_paths: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+
+
+class GovernedAnalyseAndLockRequest(BaseModel):
+    """KB-owned analysis request. Agent supplies facts; KB resolves knowledge, analyses and locks."""
+
+    model_config = ConfigDict(extra="forbid")
+    tenant_id: str = Field(default="default", min_length=1, max_length=255)
+    workspace_id: str = Field(default="default", min_length=1, max_length=255)
+    repository_id: str = Field(default="", max_length=2000)
+    requirement: RawRequirementInput
+    repository_snapshot: RepositorySnapshotInput
+    knowledge: KnowledgeSelectionInput = Field(default_factory=lambda: KnowledgeSelectionInput(mode="automatic"))
+    governance: list[GovernanceRuleInput] = Field(default_factory=list)
+
+
 class RequirementAnalysisInput(BaseModel):
     """Requirement analysis produced by an external intelligence layer such as Kaiwora.
 

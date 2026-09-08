@@ -20,6 +20,7 @@ from app.schemas.context_assembly import (
     ContextAssemblyLockResource,
     GovernedContextAssembly,
     GovernedContextFromAnalysisRequest,
+    GovernedAnalyseAndLockRequest,
     GovernedContextRequest,
     LockStalenessRequest,
     KnowledgeResolution,
@@ -41,6 +42,11 @@ from app.services.context_assembly import (
     lock_assembly,
 )
 from app.services.learning_service import reusable as reusable_learning
+from app.services.governed_analysis_service import (
+    GovernedAnalysisError,
+    analyse_with_approved_knowledge,
+    seed_analysis,
+)
 from app.services.knowledge_resolver import (
     KnowledgeResolutionError,
     KnowledgeResolutionUnavailableError,
@@ -238,6 +244,217 @@ async def analysis_guidance(payload: AnalysisGuidanceRequest, db: AsyncSession=D
     import hashlib, json
     digest='sha256:'+hashlib.sha256(json.dumps(rows,sort_keys=True,separators=(',',':'),default=str).encode()).hexdigest()
     return {'selected':[x.model_dump() for x in resolution.selected],'snapshots':rows,'guidance_hash':digest,'resolution_hash':resolution.resolution_hash}
+
+async def _resolution_snapshots(db: AsyncSession, resolution: KnowledgeResolution) -> list[dict]:
+    ids = [item.entry_id for item in resolution.selected]
+    if not ids:
+        return []
+    result = await db.execute(select(Entry).where(Entry.id.in_(ids)))
+    by_id = {str(row.id): row for row in result.scalars().all()}
+    snapshots: list[dict] = []
+    for item in resolution.selected:
+        row = by_id.get(item.entry_id)
+        if row is None or getattr(row.status, "value", str(row.status)) != "resolved":
+            continue
+        snapshots.append({
+            "entry_id": str(row.id),
+            "title": row.title,
+            "content": row.content,
+            "source": row.source,
+            "scope": item.scope,
+            "score": item.score,
+            "knowledge_kind": str(getattr(row, "knowledge_kind", "documentation") or "documentation"),
+            "owner_scope": str(getattr(row, "owner_scope", "global") or "global"),
+            "applies_to": getattr(row, "applies_to", None),
+            "priority": int(getattr(row, "priority", 100) or 100),
+        })
+    return snapshots
+
+
+@router.post(
+    "/analyse-and-lock",
+    status_code=status.HTTP_201_CREATED,
+    summary="KB-owned governed requirement/repository analysis, knowledge resolution and Context Lock",
+)
+async def analyse_and_lock(
+    payload: GovernedAnalyseAndLockRequest,
+    db: AsyncSession = Depends(get_db),
+    embedder: EmbeddingService = Depends(get_embedding_service),
+):
+    """Single analysis authority for Agent/Customer flows.
+
+    Agent/Core supplies raw work-item facts plus an immutable repository snapshot.
+    KB performs a seed knowledge resolution, Qwen-assisted governed analysis using
+    approved knowledge, final knowledge resolution, Context Assembly and Lock.
+    """
+    import hashlib
+    import json
+
+    if payload.knowledge.mode != "automatic":
+        raise HTTPException(422, "KB-owned analyse-and-lock requires automatic knowledge resolution")
+
+    seed_requirement, seed_repository = seed_analysis(payload.requirement, payload.repository_snapshot)
+    try:
+        seed_resolution = await resolve_knowledge(
+            db,
+            embedder,
+            requirement=seed_requirement,
+            repository=seed_repository,
+            workstream_id=payload.knowledge.workstream_id,
+            tenant_id=payload.tenant_id,
+            workspace_id=payload.workspace_id,
+            repository_id=payload.repository_id or str(payload.repository_snapshot.url or payload.repository_snapshot.name),
+            include_shared=payload.knowledge.include_shared,
+            max_entries=payload.knowledge.max_entries,
+            min_similarity=payload.knowledge.min_similarity,
+        )
+        seed_snapshots = await _resolution_snapshots(db, seed_resolution)
+        bootstrap_seed = any(
+            "bootstrap" in str(value).casefold() or "greenfield" in str(value).casefold()
+            for value in (seed_repository.architecture_context or [])
+        )
+        if bootstrap_seed and not seed_snapshots:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "APPROVED_BOOTSTRAP_KNOWLEDGE_REQUIRED",
+                    "message": "Bootstrap/greenfield execution requires resolved approved engineering knowledge in the authorised KB scope.",
+                },
+            )
+        requirement_analysis, repository_analysis, diagnostics = await analyse_with_approved_knowledge(
+            payload.requirement, payload.repository_snapshot, seed_snapshots
+        )
+        final_resolution = await resolve_knowledge(
+            db,
+            embedder,
+            requirement=requirement_analysis,
+            repository=repository_analysis,
+            workstream_id=payload.knowledge.workstream_id,
+            tenant_id=payload.tenant_id,
+            workspace_id=payload.workspace_id,
+            repository_id=payload.repository_id or str(payload.repository_snapshot.url or payload.repository_snapshot.name),
+            include_shared=payload.knowledge.include_shared,
+            max_entries=payload.knowledge.max_entries,
+            min_similarity=payload.knowledge.min_similarity,
+        )
+    except KnowledgeResolutionUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except KnowledgeResolutionError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except GovernedAnalysisError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    canonical = {
+        "analysis_source": "kaiwora_kb",
+        "requirement_analysis": requirement_analysis.model_dump(mode="json"),
+        "repository_analysis": repository_analysis.model_dump(mode="json"),
+        "knowledge_resolution_hash": final_resolution.resolution_hash,
+        "tenant_id": payload.tenant_id,
+        "workspace_id": payload.workspace_id,
+        "repository_id": payload.repository_id,
+    }
+    analysis_hash = "sha256:" + hashlib.sha256(
+        json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+    analysis_id = f"kb-analysis-{analysis_hash.split(':',1)[1][:24]}"
+    governed_payload = GovernedContextFromAnalysisRequest(
+        analysis_source="kaiwora_kb",
+        analysis_id=analysis_id,
+        analysis_hash=analysis_hash,
+        tenant_id=payload.tenant_id,
+        workspace_id=payload.workspace_id,
+        repository_id=payload.repository_id or str(payload.repository_snapshot.url or payload.repository_snapshot.name),
+        requirement_analysis=requirement_analysis,
+        repository_analysis=repository_analysis,
+        knowledge={
+            "mode": "explicit",
+            "entry_ids": [item.entry_id for item in final_resolution.selected],
+        },
+        governance=payload.governance,
+    )
+    try:
+        requirement_ctx = build_requirement_context_from_analysis(
+            requirement_analysis, analysis_source="kaiwora_kb", analysis_id=analysis_id,
+            analysis_hash=analysis_hash, tenant_id=payload.tenant_id, workspace_id=payload.workspace_id,
+            repository_id=governed_payload.repository_id,
+        )
+        repository_ctx = build_repository_context_from_analysis(
+            repository_analysis, analysis_source="kaiwora_kb", analysis_id=analysis_id, analysis_hash=analysis_hash,
+        )
+        entries = await select_approved_entries(db, [item.entry_id for item in final_resolution.selected])
+        authorised_entries = filter_authorized_entries(
+            entries, tenant_id=payload.tenant_id, workspace_id=payload.workspace_id, repository_id=governed_payload.repository_id
+        )
+        if len(authorised_entries) != len(entries):
+            raise HTTPException(status_code=404, detail="One or more knowledge entries are outside the authorised tenant scope")
+        learning_entries = await reusable_learning(db, payload.tenant_id, payload.workspace_id, governed_payload.repository_id)
+        knowledge_ctx = build_knowledge_context(authorised_entries, resolution=final_resolution, learning_entries=learning_entries)
+        governance_ctx = build_governance_context(payload.governance)
+        assembly = assemble_governed_context(requirement_ctx, repository_ctx, knowledge_ctx, governance_ctx)
+    except (RequirementValidationError, RepositoryValidationError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except GovernanceConflictError as exc:
+        raise HTTPException(status_code=409, detail={"error":"governance_conflict","message":str(exc)}) from exc
+    except UnknownEntryIdsError as exc:
+        raise HTTPException(status_code=404, detail=f"One or more entries were not found: {exc.entry_ids}") from exc
+    except UnapprovedEntryError as exc:
+        raise HTTPException(status_code=400, detail=f"Only approved/resolved knowledge can enter a governed context: {exc.entry_ids}") from exc
+    lock = lock_assembly(assembly, include_governed_context=True)
+    lock_payload = lock.model_dump(mode="json")
+    assembly_payload = assembly.model_dump(mode="json")
+    request_payload = {
+        "source_type": "kb_owned_analysis",
+        "payload": payload.model_dump(mode="json"),
+        "seed_resolution_hash": seed_resolution.resolution_hash,
+        "final_resolution_hash": final_resolution.resolution_hash,
+        "diagnostics": diagnostics,
+    }
+    row = await db.get(ContextAssemblyLockDB, lock.lock_id)
+    if row is None:
+        row = ContextAssemblyLockDB(
+            lock_id=lock.lock_id,
+            context_hash=lock.context_hash,
+            lock_payload=lock_payload,
+            assembly_payload=assembly_payload,
+            request_payload=request_payload,
+            tenant_id=payload.tenant_id,
+            workspace_id=payload.workspace_id,
+            repository_id=governed_payload.repository_id,
+        )
+        db.add(row)
+    else:
+        row.context_hash = lock.context_hash
+        row.lock_payload = lock_payload
+        row.assembly_payload = assembly_payload
+        row.request_payload = request_payload
+        row.tenant_id = payload.tenant_id
+        row.workspace_id = payload.workspace_id
+        row.repository_id = governed_payload.repository_id
+    await db.commit()
+    return {
+        "analysis": {
+            "analysis_source": "kaiwora_kb",
+            "analysis_id": analysis_id,
+            "analysis_hash": analysis_hash,
+            "requirement_analysis": requirement_analysis.model_dump(mode="json"),
+            "repository_analysis": repository_analysis.model_dump(mode="json"),
+            "knowledge": {
+                "mode": "automatic",
+                "resolution_hash": final_resolution.resolution_hash,
+                "selected": [item.model_dump(mode="json") for item in final_resolution.selected],
+            },
+            "tenant_id": payload.tenant_id,
+            "workspace_id": payload.workspace_id,
+            "repository_id": governed_payload.repository_id,
+        },
+        "context_lock": lock_payload,
+        "diagnostics": {
+            **diagnostics,
+            "seed_resolution_hash": seed_resolution.resolution_hash,
+            "final_resolution_hash": final_resolution.resolution_hash,
+        },
+    }
+
 
 @router.post(
     "/resolve-knowledge",
