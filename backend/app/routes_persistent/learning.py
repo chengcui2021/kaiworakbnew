@@ -106,6 +106,7 @@ async def list_candidates(
 async def review_candidate(
     candidate_id: str,
     payload: CandidateReview,
+    tenant_id: str = Query("default"),
     db: AsyncSession = Depends(get_db),
     embedder: EmbeddingService = Depends(get_embedding_service),
 ):
@@ -114,7 +115,7 @@ async def review_candidate(
     try: cid=UUID(candidate_id)
     except ValueError as exc: raise HTTPException(422, "Invalid candidate id") from exc
     row=await db.get(LearningEntryDB,cid)
-    if row is None: raise HTTPException(404,"Learning candidate not found")
+    if row is None or row.tenant_id != tenant_id: raise HTTPException(404,"Learning candidate not found")
     if row.status != "candidate": raise HTTPException(409,"Learning candidate has already been reviewed")
 
     observation=(payload.edited_observation or row.observation).strip()
