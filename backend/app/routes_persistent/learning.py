@@ -1,10 +1,12 @@
 from __future__ import annotations
 from typing import Any
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from app.persistence.database import get_db
-from app.persistence.models import Entry, EntryStatus, EntryType, ComponentName
+from app.persistence.embeddings import EmbeddingService, get_embedding_service
+from app.persistence.models import Entry, EntryStatus, EntryType, ComponentName, LearningEntryDB
 from app.services.learning_service import create_candidate, reusable
 from app.services.global_learning_service import maybe_create_global_candidate
 
@@ -27,7 +29,17 @@ class CandidateLearningCreate(BaseModel):
     workstream_id: str | None = None
 
 def view(row):
-    return {"id":str(row.id),"tenant_id":row.tenant_id,"workspace_id":row.workspace_id,"repository_id":row.repository_id,"knowledge_type":row.knowledge_type,"scope":row.scope,"observation":row.observation,"status":row.status,"confidence":row.confidence/100.0,"source_run_id":row.source_run_id,"source_commit":row.source_commit,"fingerprint":row.fingerprint,"created_at":row.created_at.isoformat() if row.created_at else None}
+    evidence = dict(row.evidence or {})
+    provenance = dict(row.provenance or {})
+    strength = "strong" if row.confidence >= 75 else ("medium" if row.confidence >= 55 else "weak")
+    return {
+        "id":str(row.id),"tenant_id":row.tenant_id,"workspace_id":row.workspace_id,"repository_id":row.repository_id,
+        "knowledge_type":row.knowledge_type,"scope":row.scope,"observation":row.observation,"status":row.status,
+        "confidence":row.confidence/100.0,"evidence_strength":strength,"evidence":evidence,"provenance":provenance,
+        "source_run_id":row.source_run_id,"source_commit":row.source_commit,"fingerprint":row.fingerprint,
+        "created_at":row.created_at.isoformat() if row.created_at else None,
+        "validated_at":row.validated_at.isoformat() if row.validated_at else None,
+    }
 
 @router.post("/candidates", status_code=201)
 async def add_candidate(payload: CandidateLearningCreate, db: AsyncSession=Depends(get_db)):
@@ -64,6 +76,97 @@ async def add_candidate(payload: CandidateLearningCreate, db: AsyncSession=Depen
     result["workstream_entry_id"] = str(candidate_entry.id)
     result["global_candidate_id"] = str(global_candidate.id) if global_candidate else None
     return result
+
+class CandidateReview(BaseModel):
+    model_config=ConfigDict(extra="forbid")
+    decision: str = Field(pattern="^(approved|rejected|deferred)$")
+    reviewer: str = Field(default="Customer Engineering Admin", min_length=1, max_length=255)
+    edited_observation: str | None = Field(default=None, max_length=100_000)
+    scope: str | None = Field(default=None, pattern="^(repository|workspace|tenant)$")
+
+
+@router.get("/candidates")
+async def list_candidates(
+    tenant_id: str = Query("default"),
+    status: str = Query("candidate"),
+    workspace_id: str | None = Query(None),
+    repository_id: str | None = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(LearningEntryDB).where(LearningEntryDB.tenant_id == tenant_id)
+    if status != "all": stmt = stmt.where(LearningEntryDB.status == status)
+    if workspace_id: stmt = stmt.where(LearningEntryDB.workspace_id == workspace_id)
+    if repository_id: stmt = stmt.where(LearningEntryDB.repository_id == repository_id)
+    rows=list((await db.execute(stmt.order_by(LearningEntryDB.created_at.desc()).limit(limit))).scalars().all())
+    return {"items":[view(r) for r in rows],"count":len(rows)}
+
+
+@router.post("/candidates/{candidate_id}/review")
+async def review_candidate(
+    candidate_id: str,
+    payload: CandidateReview,
+    db: AsyncSession = Depends(get_db),
+    embedder: EmbeddingService = Depends(get_embedding_service),
+):
+    from datetime import datetime, UTC
+    from uuid import UUID
+    try: cid=UUID(candidate_id)
+    except ValueError as exc: raise HTTPException(422, "Invalid candidate id") from exc
+    row=await db.get(LearningEntryDB,cid)
+    if row is None: raise HTTPException(404,"Learning candidate not found")
+    if row.status != "candidate": raise HTTPException(409,"Learning candidate has already been reviewed")
+
+    observation=(payload.edited_observation or row.observation).strip()
+    scope=payload.scope or row.scope
+    now=datetime.now(UTC)
+    entry=(await db.execute(select(Entry).where(Entry.source == f"agent-run:{row.source_run_id}:{row.id}"))).scalar_one_or_none()
+
+    if payload.decision == "approved":
+        row.status="validated"; row.validated_at=now; row.observation=observation; row.scope=scope
+        ev=dict(row.evidence or {}); ev.update({"human_approved":True,"approved_by":payload.reviewer,"approved_at":now.isoformat()}); row.evidence=ev
+        if entry is None:
+            entry=Entry(entry_type=EntryType.DOCUMENTATION,component_name=ComponentName.INGESTION,title=f"Approved learning · {row.knowledge_type} · {row.source_run_id[:12]}",content=observation,source=f"agent-run:{row.source_run_id}:{row.id}",author=payload.reviewer,status=EntryStatus.RESOLVED,embedding=None,owner_scope=scope,tenant_id=row.tenant_id,workspace_id=row.workspace_id if scope in {"workspace","repository"} else None,repository_id=row.repository_id if scope=="repository" else None)
+            db.add(entry)
+        else:
+            entry.title=f"Approved learning · {row.knowledge_type} · {row.source_run_id[:12]}"
+            entry.content=observation; entry.author=payload.reviewer; entry.status=EntryStatus.RESOLVED; entry.owner_scope=scope
+            entry.tenant_id=row.tenant_id; entry.workspace_id=row.workspace_id if scope in {"workspace","repository"} else None; entry.repository_id=row.repository_id if scope=="repository" else None
+        try: entry.embedding=await embedder.embed_text(observation)
+        except Exception: entry.embedding=None
+    else:
+        row.status=payload.decision
+        ev=dict(row.evidence or {}); ev.update({"human_approved":False,"review_decision":payload.decision,"reviewed_by":payload.reviewer,"reviewed_at":now.isoformat()}); row.evidence=ev
+        if entry is not None:
+            entry.status=EntryStatus.REJECTED if payload.decision=="rejected" else EntryStatus.DEFERRED
+            entry.author=payload.reviewer
+    await db.commit(); await db.refresh(row)
+    result=view(row); result["approved_entry_id"]=str(entry.id) if entry is not None and entry.id else None
+    return result
+
+
+@router.get("/approved")
+async def approved_customer_knowledge(
+    tenant_id: str = Query("default"),
+    workspace_id: str | None = Query(None),
+    repository_id: str | None = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt=select(Entry).where(Entry.status==EntryStatus.RESOLVED, Entry.tenant_id==tenant_id)
+    if repository_id:
+        stmt=stmt.where((Entry.owner_scope!='repository') | (Entry.repository_id==repository_id))
+    if workspace_id:
+        stmt=stmt.where((Entry.owner_scope=='tenant') | (Entry.workspace_id==workspace_id))
+    rows=list((await db.execute(stmt.order_by(Entry.updated_at.desc()).limit(limit))).scalars().all())
+    items=[{
+        "id":str(r.id),"title":r.title,"content":r.content,"type":r.entry_type.value if hasattr(r.entry_type,"value") else str(r.entry_type),
+        "component":r.component_name.value if hasattr(r.component_name,"value") else str(r.component_name),"status":r.status.value if hasattr(r.status,"value") else str(r.status),
+        "owner_scope":r.owner_scope,"tenant_id":r.tenant_id,"workspace_id":r.workspace_id,"repository_id":r.repository_id,
+        "knowledge_kind":r.knowledge_kind,"applies_to":r.applies_to,"priority":r.priority,"source":r.source,"author":r.author,
+    } for r in rows]
+    return {"items":items,"count":len(items)}
+
 
 @router.get("/reusable")
 async def get_reusable(tenant_id:str=Query("default"), workspace_id:str=Query("default"), repository_id:str=Query(""), db:AsyncSession=Depends(get_db)):

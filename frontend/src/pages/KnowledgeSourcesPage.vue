@@ -135,7 +135,7 @@ onMounted(async () => {
 
     <Card>
       <CardHeader><CardTitle>Agent Run Learning</CardTitle><CardDescription>Kaiwora Agent runs automatically submit evidence-backed learning candidates into the relevant workstream. They appear with source <code>agent-run:…</code> and use the same human Resolve/Defer/Supersede lifecycle as all other entries.</CardDescription></CardHeader>
-      <CardContent><div class="rounded-md border bg-muted/30 p-3 text-sm">Agent learning never auto-approves itself. Tenant-private observations stay scoped; cross-customer promotion remains sanitised and separately governed.</div></CardContent>
+      <CardContent><div class="rounded-md border bg-muted/30 p-3 text-sm">Agent learning never auto-approves itself. Tenant-private observations stay private to the customer and become reusable only after customer review and approval.</div></CardContent>
     </Card>
 
     <Card v-if="result">

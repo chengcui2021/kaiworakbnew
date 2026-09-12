@@ -58,3 +58,6 @@ logs/
 tmp/
 temp/
 .cache/
+
+# Local package archives
+*.zip
