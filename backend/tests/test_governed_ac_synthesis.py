@@ -78,6 +78,36 @@ async def test_missing_ticket_ac_is_synthesized_by_kb_governed_analysis(monkeypa
 
 
 @pytest.mark.asyncio
+async def test_missing_ticket_ac_can_be_synthesized_without_approved_knowledge(monkeypatch):
+    _install_gateway(monkeypatch, {
+        "requirement_analysis": {
+            "title": "Add todo counter",
+            "description": "Show the number of todos",
+            "acceptance_criteria": [
+                "The counter is visible on the main page.",
+                "Adding a todo increments the counter by one.",
+                "Removing a todo decrements the counter by one.",
+            ],
+            "clarified_requirement": "Add a dynamic todo count.",
+            "constraints": [], "assumptions": [], "ambiguities": [], "dependencies": [],
+        },
+        "repository_analysis": {
+            "relevant_files": [{"path": "src/App.js", "context_role": "implementation", "access": "read_write"}],
+            "impacted_components": ["App"], "dependencies": [], "architecture_context": ["bootstrap_project"], "analysis_evidence": [],
+        },
+    })
+    req, repo, diagnostics = await service.analyse_with_approved_knowledge(
+        RawRequirementInput(title="Add todo counter", description="Show the number of todos", acceptance_criteria=[]),
+        _snapshot(),
+        [],
+    )
+    assert len(req.acceptance_criteria) == 3
+    assert diagnostics["acceptance_criteria_source"] == "kb_synthesized"
+    assert diagnostics["approved_knowledge_count"] == 0
+    assert diagnostics["acceptance_criteria_knowledge_entry_ids"] == []
+
+
+@pytest.mark.asyncio
 async def test_explicit_ticket_ac_remains_authoritative(monkeypatch):
     _install_gateway(monkeypatch, {
         "requirement_analysis": {

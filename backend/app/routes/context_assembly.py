@@ -309,18 +309,6 @@ async def analyse_and_lock(
             min_similarity=payload.knowledge.min_similarity,
         )
         seed_snapshots = await _resolution_snapshots(db, seed_resolution)
-        bootstrap_seed = any(
-            "bootstrap" in str(value).casefold() or "greenfield" in str(value).casefold()
-            for value in (seed_repository.architecture_context or [])
-        )
-        if bootstrap_seed and not seed_snapshots:
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "code": "APPROVED_BOOTSTRAP_KNOWLEDGE_REQUIRED",
-                    "message": "Bootstrap/greenfield execution requires resolved approved engineering knowledge in the authorised KB scope.",
-                },
-            )
         requirement_analysis, repository_analysis, diagnostics = await analyse_with_approved_knowledge(
             payload.requirement, payload.repository_snapshot, seed_snapshots
         )

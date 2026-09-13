@@ -152,7 +152,7 @@ what may need to be created as architecture_context; do not pretend proposed fil
 ACCEPTANCE CRITERIA CONTRACT:
 - If RAW REQUIREMENT acceptance_criteria is non-empty, preserve those criteria semantically and do not weaken them.
 - If RAW REQUIREMENT acceptance_criteria is empty, synthesize 3-8 concise, objectively verifiable acceptance criteria.
-- Synthesized criteria MUST be grounded in the requirement, repository snapshot and approved/resolved knowledge.
+- Synthesized criteria MUST be grounded in the requirement and repository snapshot, plus any approved/resolved knowledge available in scope.
 - Prefer observable behaviour and regression-safety outcomes over implementation-detail wording.
 - Do not invent product behaviour that is not supported by the requirement or authoritative approved knowledge.
 - Criteria must be suitable for later PASS / FAIL / UNVERIFIED validation against the same locked contract.
