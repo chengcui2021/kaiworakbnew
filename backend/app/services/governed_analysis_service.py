@@ -148,6 +148,14 @@ async def analyse_with_approved_knowledge(
 Approved/resolved KB knowledge below is authoritative guidance. Repository inventory is immutable evidence.
 Do NOT invent existing files. For a sparse/greenfield repository, explicitly classify bootstrap_project and describe
 what may need to be created as architecture_context; do not pretend proposed files already exist.
+
+ACCEPTANCE CRITERIA CONTRACT:
+- If RAW REQUIREMENT acceptance_criteria is non-empty, preserve those criteria semantically and do not weaken them.
+- If RAW REQUIREMENT acceptance_criteria is empty, synthesize 3-8 concise, objectively verifiable acceptance criteria.
+- Synthesized criteria MUST be grounded in the requirement, repository snapshot and approved/resolved knowledge.
+- Prefer observable behaviour and regression-safety outcomes over implementation-detail wording.
+- Do not invent product behaviour that is not supported by the requirement or authoritative approved knowledge.
+- Criteria must be suitable for later PASS / FAIL / UNVERIFIED validation against the same locked contract.
 Return strict JSON with keys requirement_analysis and repository_analysis only.
 
 RAW REQUIREMENT:\n{json.dumps(requirement.model_dump(mode='json'), ensure_ascii=False)}
@@ -197,11 +205,26 @@ Required JSON schema:
     req_data = dict(data.get("requirement_analysis") or {})
     repo_data = dict(data.get("repository_analysis") or {})
     # Immutable identity always comes from trusted Agent facts, never the model.
+    # Acceptance criteria are different: explicit customer AC remain authoritative,
+    # while a missing AC set is synthesized by this KB-owned analysis using the
+    # repository snapshot + resolved approved knowledge.  The generated set is
+    # then frozen into the Context Lock and MUST NOT be rewritten downstream.
+    explicit_acs = [str(x).strip() for x in (requirement.acceptance_criteria or []) if str(x).strip()]
+    model_acs = [
+        str(x).strip()
+        for x in (req_data.get("acceptance_criteria") or [])
+        if isinstance(x, str) and str(x).strip()
+    ]
+    acceptance_criteria = explicit_acs or list(dict.fromkeys(model_acs))[:8]
+    if not acceptance_criteria:
+        raise GovernedAnalysisError(
+            "AC_SYNTHESIS_FAILED: requirement has no explicit acceptance criteria and KB governed analysis returned none"
+        )
     req_data.update({
         "request_id": requirement.request_id,
         "title": requirement.title,
         "description": requirement.description,
-        "acceptance_criteria": requirement.acceptance_criteria,
+        "acceptance_criteria": acceptance_criteria,
         "source": requirement.source or "kb_governed_analysis",
     })
     repo_data.update({
@@ -240,5 +263,14 @@ Required JSON schema:
         repo = RepositoryAnalysisInput.model_validate(repo_data)
     except Exception as exc:
         raise GovernedAnalysisError(f"Governed analysis output failed schema validation: {exc}") from exc
-    diagnostics = {"model": model, "bootstrap_project": bootstrap, "approved_knowledge_count": len(knowledge)}
+    diagnostics = {
+        "model": model,
+        "bootstrap_project": bootstrap,
+        "approved_knowledge_count": len(knowledge),
+        "acceptance_criteria_source": "explicit" if explicit_acs else "kb_synthesized",
+        "acceptance_criteria_count": len(req.acceptance_criteria),
+        "acceptance_criteria_knowledge_entry_ids": [
+            str(x.get("entry_id")) for x in knowledge if x.get("entry_id")
+        ],
+    }
     return req, repo, diagnostics
