@@ -197,13 +197,24 @@ Required JSON schema:
     req_data = dict(data.get("requirement_analysis") or {})
     repo_data = dict(data.get("repository_analysis") or {})
     # Immutable identity always comes from trusted Agent facts, never the model.
+    generated_acceptance_criteria = [
+        str(x).strip()
+        for x in (req_data.get("acceptance_criteria") or [])
+        if str(x).strip()
+    ]
+
     req_data.update({
         "request_id": requirement.request_id,
         "title": requirement.title,
         "description": requirement.description,
-        "acceptance_criteria": requirement.acceptance_criteria,
         "source": requirement.source or "kb_governed_analysis",
     })
+
+    req_data["acceptance_criteria"] = (
+        requirement.acceptance_criteria
+        if requirement.acceptance_criteria
+        else generated_acceptance_criteria
+    )
     repo_data.update({
         "name": snapshot.name,
         "url": snapshot.url,
