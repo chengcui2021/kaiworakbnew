@@ -150,6 +150,15 @@ Do NOT invent existing files. For a sparse/greenfield repository, explicitly cla
 what may need to be created as architecture_context; do not pretend proposed files already exist.
 Return strict JSON with keys requirement_analysis and repository_analysis only.
 
+ACCEPTANCE CRITERIA RULES:
+- If RAW REQUIREMENT already contains non-empty acceptance_criteria, preserve their meaning.
+- If RAW REQUIREMENT acceptance_criteria is empty, you MUST synthesize concrete acceptance criteria from the requirement, repository evidence, and applicable approved knowledge.
+- Synthesized acceptance_criteria MUST NOT be empty when the requirement describes an implementable software change.
+- Each acceptance criterion must be specific, observable, and independently verifiable.
+- Do not invent existing repository files or unsupported product requirements.
+- Return acceptance_criteria as a JSON array of non-empty strings.
+- For an implementable requirement, returning an empty acceptance_criteria array is invalid.
+
 RAW REQUIREMENT:\n{json.dumps(requirement.model_dump(mode='json'), ensure_ascii=False)}
 
 REPOSITORY SNAPSHOT (bootstrap_detected={str(bootstrap).lower()}):\n{json.dumps({'name':snapshot.name,'url':snapshot.url,'branch':snapshot.branch,'commit_sha':snapshot.commit_sha,'files':inventory,'top_level_paths':snapshot.top_level_paths,'evidence':snapshot.evidence}, ensure_ascii=False)[:28000]}
@@ -159,7 +168,7 @@ APPROVED / RESOLVED KNOWLEDGE:\n{json.dumps(knowledge, ensure_ascii=False)[:3000
 Required JSON schema:
 {{
   "requirement_analysis": {{
-    "request_id":"...", "title":"...", "description":"...", "acceptance_criteria":[],
+    "request_id":"...", "title":"...", "description":"...", "acceptance_criteria":["Observable criterion 1","Observable criterion 2"],
     "clarified_requirement":"...", "constraints":[], "assumptions":[], "ambiguities":[], "dependencies":[], "source":"kb_governed_analysis"
   }},
   "repository_analysis": {{
