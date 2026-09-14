@@ -58,5 +58,3 @@ logs/
 tmp/
 temp/
 .cache/
-
-*.zip
