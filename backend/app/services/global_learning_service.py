@@ -71,3 +71,41 @@ async def review_candidate(db: AsyncSession, candidate_id, *, decision: str, rev
         db.add(entry); await db.flush(); row.approved_entry_id=entry.id
     row.review_status=decision; row.reviewed_by=reviewer; row.review_note=note; row.reviewed_at=datetime.now(UTC)
     await db.commit(); await db.refresh(row); return row
+
+
+async def create_global_candidate_from_validated(db: AsyncSession, learning: LearningEntryDB) -> GlobalLearningCandidateDB | None:
+    """Create a Kaiwora-master review candidate only after customer approval.
+
+    This is intentionally separate from candidate creation: a tenant observation or
+    uploaded source must never leave the tenant merely because it was generated.
+    """
+    if learning.status != 'validated':
+        return None
+    evidence=learning.evidence or {}
+    if not bool(evidence.get('human_approved')):
+        return None
+    sanitised=sanitise_observation(learning.observation)
+    if not sanitised or sanitised == 'Governed execution outcome':
+        return None
+    existing=(await db.execute(select(GlobalLearningCandidateDB).where(
+        GlobalLearningCandidateDB.source_learning_entry_id == learning.id
+    ))).scalar_one_or_none()
+    if existing:
+        return existing
+    fp=global_fingerprint(learning.knowledge_type, sanitised)
+    validation=evidence.get('final_validation') or {}
+    row=GlobalLearningCandidateDB(
+        source_learning_entry_id=learning.id, source_tenant_id=learning.tenant_id,
+        source_workspace_id=learning.workspace_id, source_repository_id=learning.repository_id,
+        knowledge_type=learning.knowledge_type, sanitised_observation=sanitised, fingerprint=fp,
+        confidence=max(int(learning.confidence or 0), 80),
+        evidence_summary={
+            'customer_approved': True,
+            'source_kind': (learning.provenance or {}).get('source',''),
+            'run_success': bool(evidence.get('run_success')),
+            'final_validation_ok': bool(validation.get('ok', evidence.get('run_success', False))),
+            'customer_uploaded_source': bool(evidence.get('customer_uploaded_source')),
+            'validation_event_count': len(evidence.get('validation_history') or []),
+        },
+    )
+    db.add(row); await db.commit(); await db.refresh(row); return row

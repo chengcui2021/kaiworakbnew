@@ -8,7 +8,7 @@ from app.persistence.database import get_db
 from app.persistence.embeddings import EmbeddingService, get_embedding_service
 from app.persistence.models import Entry, EntryStatus, EntryType, ComponentName, LearningEntryDB
 from app.services.learning_service import create_candidate, reusable
-from app.services.global_learning_service import maybe_create_global_candidate
+from app.services.global_learning_service import maybe_create_global_candidate, create_global_candidate_from_validated
 
 router=APIRouter(prefix="/api/internal/learning", tags=["governed-learning"])
 
@@ -71,10 +71,14 @@ async def add_candidate(payload: CandidateLearningCreate, db: AsyncSession=Depen
     )
     db.add(candidate_entry)
     await db.commit(); await db.refresh(candidate_entry)
-    global_candidate=await maybe_create_global_candidate(db,row,contribution_enabled=payload.global_learning_contribution)
+    # Contribution is deliberately delayed until the customer approves this candidate.
+    # A privacy opt-in alone must never export an unapproved observation or source.
+    if payload.global_learning_contribution:
+        ev=dict(row.evidence or {}); ev['central_share_requested']=True; row.evidence=ev
+        await db.commit(); await db.refresh(row)
     result=view(row)
     result["workstream_entry_id"] = str(candidate_entry.id)
-    result["global_candidate_id"] = str(global_candidate.id) if global_candidate else None
+    result["global_candidate_id"] = None
     return result
 
 class CandidateReview(BaseModel):
@@ -144,6 +148,38 @@ async def review_candidate(
     await db.commit(); await db.refresh(row)
     result=view(row); result["approved_entry_id"]=str(entry.id) if entry is not None and entry.id else None
     return result
+
+
+class CandidateContribution(BaseModel):
+    model_config=ConfigDict(extra="forbid")
+    reviewer: str = Field(default="Customer Engineering Admin", min_length=1, max_length=255)
+
+
+@router.post("/candidates/{candidate_id}/contribute")
+async def contribute_approved_candidate(
+    candidate_id: str,
+    payload: CandidateContribution,
+    tenant_id: str = Query("default"),
+    db: AsyncSession = Depends(get_db),
+):
+    from uuid import UUID
+    try: cid=UUID(candidate_id)
+    except ValueError as exc: raise HTTPException(422,"Invalid candidate id") from exc
+    row=await db.get(LearningEntryDB,cid)
+    if row is None or row.tenant_id != tenant_id:
+        raise HTTPException(404,"Learning candidate not found")
+    if row.status != "validated":
+        raise HTTPException(409,"Only customer-approved knowledge can be contributed to Kaiwora")
+    global_candidate=await create_global_candidate_from_validated(db,row)
+    if global_candidate is None:
+        raise HTTPException(409,"Approved knowledge is not eligible for central review")
+    return {
+        "submitted": True,
+        "global_candidate_id": str(global_candidate.id),
+        "review_status": global_candidate.review_status,
+        "sanitised": True,
+        "kaiwora_admin_review_required": True,
+    }
 
 
 @router.get("/approved")
